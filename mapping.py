@@ -54,11 +54,7 @@ def processSHP(filePath, commRadius):
     rangeCircles = sensorsM
     rangeCircles['Communication Range'] = commRadius  # range(40, 40 + len(rangeCircles))
     rangeCircles['geometry'] = sensorsM['geometry'].buffer(rangeCircles['Communication Range'])
-
-    # for circle in rangeCircles['geometry']:
-    #     patch = plt.Polygon(circle.exterior.xy, edgecolor='black', facecolor='lime', alpha=0.4)
-    #     ax.add_patch(patch)
-    # Plot the circles as patches
+    print(rangeCircles.columns)
     for circle in rangeCircles['geometry']:
         x, y = circle.exterior.xy
         vertices = list(zip(x, y))
@@ -76,11 +72,19 @@ def processSHP(filePath, commRadius):
     hoverPoints.reset_index(drop=True, inplace=True)
     hoverPoints.plot(ax=ax, color='yellow', markersize=10, alpha=1)
 
+    #create dictionary to correspond hover points to sensors
+    sensorNames = {}
+    for hoverPoint in hoverPoints['geometry']:
+        sensorNames[hoverPoint] = []
+        for circle in rangeCircles['geometry']:
+            if hoverPoint.within(circle):
+                sensorName = rangeCircles.loc[rangeCircles['geometry'] == circle, 'Location'].values[0]
+                sensorNames[hoverPoint].append(sensorName)
     # Set plot title and labels
     ax.set_title('Sensors with Communication Ranges (Meters)')
     ax.set_xlabel('East')
     ax.set_ylabel('North')
-    return ax, hoverPoints
+    return ax, hoverPoints, sensorNames
 
 
 
@@ -95,6 +99,7 @@ def findMinTravelDistance(hoverPoints):
 # plot lines between selected geometry points in the order provided
 def plotPath(ax, hoverPoints):
     coordinates = np.array([(point.x, point.y) for point in hoverPoints.geometry])
+    ax.plot([coordinates[0][0], 0], [coordinates[0][1], 0], 'r-')
     for i in range(len(coordinates) - 1):
         xValues = [coordinates[i][0], coordinates[i + 1][0]]
         yValues = [coordinates[i][1], coordinates[i + 1][1]]
@@ -102,13 +107,24 @@ def plotPath(ax, hoverPoints):
     ax.plot([coordinates[len(coordinates) - 1][0], 0], [coordinates[len(coordinates) - 1][1], 0], 'r-')  # return path
 
 
+def getSensorNames(points, sensorNames):
+    corrSensorsSet = set()
+    for point in points:
+        if point in sensorNames:
+            corrSensorsSet.update(sensorNames[point])
+    return list(corrSensorsSet)
+
+
 def testMapping():
     shpFilePath = 'CAF_Sensor_Dataset_2/CAF_sensors.shp'
     communicationRadius = 70
-    ax, hoverPoints = processSHP(shpFilePath, communicationRadius)
+    ax, hoverPoints, sensorNames = processSHP(shpFilePath, communicationRadius)
     # select random subset of 40 rows
-    selectedHoverPoints = hoverPoints.sample(40)
+    selectedHoverPoints = hoverPoints.sample(10)
+    features = getSensorNames(selectedHoverPoints['geometry'], sensorNames)
+    print(features)
     selectedHoverPoints = findMinTravelDistance(selectedHoverPoints)
+    print(selectedHoverPoints.head(100))
     plotPath(ax, selectedHoverPoints)
     plt.show()
 
