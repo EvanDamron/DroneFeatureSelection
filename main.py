@@ -7,7 +7,9 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from ML import getMSE, processData
 import random
-
+from joblib import Parallel, delayed
+import time
+startTime = time.time()
 positionFilePath = 'CAF_Sensor_Dataset_2/CAF_sensors.shp'
 dataFolderPath = 'CAF_Sensor_Dataset_2/caf_sensors/Hourly'
 communicationRadius = 70
@@ -30,19 +32,25 @@ outOfBudget = False
 # determine what points can be visited without violating distance budget
 def getPointsInBudget(unselected, selected):
     inBudgetHP = unselected.copy()
-    for index, row in unselected.iterrows():
+    def calculateDistanceIfAdded(index, row):
         extractedRow = gpd.GeoDataFrame([row], geometry='geometry', crs=unselected.crs)
         tempSHP = gpd.GeoDataFrame(pd.concat([selected, extractedRow], ignore_index=True), crs=unselected.crs)
         tempSHP = findMinTravelDistance(tempSHP)
-        if tempSHP['distance'][0] > maxDistance:
+        distanceIfAdded = tempSHP['distance'][0]
+        return index, distanceIfAdded
+
+    indexesDistances = Parallel(n_jobs=-1)(delayed(calculateDistanceIfAdded)(index, row) for index, row in inBudgetHP.iterrows())
+    indexesDistances.sort(key=lambda x: x[0])
+    for value in indexesDistances:
+        index, distance = value
+        if distance > maxDistance:
             inBudgetHP = inBudgetHP.drop(index)
         else:
-            inBudgetHP.at[index, 'distanceIfAdded'] = tempSHP['distance'][0]
+            inBudgetHP.at[index, 'distanceIfAdded'] = distance
     if 'distance' in inBudgetHP.columns:
         inBudgetHP.drop('distance', axis=1, inplace=True)
     inBudgetHP = inBudgetHP.reset_index(drop=True)
     return inBudgetHP
-
 
 # Adds a random hoverpoint that is in budget (IB)
 def addRandomHP(unselected, unselectedIB, selected):
@@ -67,11 +75,14 @@ def remRandomHP(unselected, selected):
         return selected
     rowToMove = selected.sample(n=1)
     UHP = gpd.GeoDataFrame(pd.concat([unselected, rowToMove], ignore_index=True), crs=unselected.crs)
+    if 'distance' in UHP.columns:
+        UHP.drop('distance', axis=1, inplace=True)
     selected = selected.drop(index=rowToMove.index)
     return UHP, selected
 
 
 # Add the best in-budget-hoverpoint to selected, best = max((oldDistance - newDistance) * (oldMSE - newMSE))
+
 def addBestHP(unselected, unselectedIB, selected):
     print("ADD BEST")
     if unselectedIB.empty:
@@ -85,16 +96,25 @@ def addBestHP(unselected, unselectedIB, selected):
         oldDistance = selected['distance'][0]
         features = getSensorNames(selected['geometry'], sensorNames)
         oldMSE = getMSE(features, df)
-    for index, row in unselectedIB.iterrows():
+
+    def calculateRewardsAdding(index, row):
         print('index ', index + 1, 'of', len(unselectedIB))
         extractedRow = gpd.GeoDataFrame([row], geometry='geometry', crs=unselectedIB.crs)
         tempSHP = gpd.GeoDataFrame(pd.concat([selected, extractedRow], ignore_index=True), crs=unselectedIB.crs)
         features = getSensorNames(tempSHP['geometry'], sensorNames)
         newMSE = getMSE(features, df)
         newDistance = unselectedIB['distanceIfAdded'][index]
-        rewards[index] = (oldDistance - newDistance) * (oldMSE - newMSE)
+        reward = (oldDistance - newDistance) * (oldMSE - newMSE)
+        return index, reward
+
+    indexesRewards = Parallel(n_jobs=-1)(delayed(calculateRewardsAdding)
+                                            (index, row) for index, row in unselectedIB.iterrows())
+
+    indexesRewards.sort(key=lambda x: x[0])
+    indexes, rewards = zip(*indexesRewards)
     maxReward = max(rewards)
     maxIndex = rewards.index(maxReward)
+
     distanceOfBest = unselectedIB['distanceIfAdded'][maxIndex]
     rowToMove = unselectedIB.loc[[maxIndex]].copy()
     rowToMove.rename(columns={'distanceIfAdded': 'distance'}, inplace=True)
@@ -118,7 +138,8 @@ def remBestHP(unselected, selected):
         points = selected['geometry'].copy()
         features = getSensorNames(points, sensorNames)
         oldMSE = getMSE(features, df)
-    for index, row in selected.iterrows():
+
+    def calculateRewardsRemoving(index, row):
         print('index ', index + 1, 'of', len(selected))
         tempSHP = selected.drop(index=index)
         tempSHP = tempSHP.reset_index(drop=True)
@@ -126,21 +147,29 @@ def remBestHP(unselected, selected):
         features = getSensorNames(tempSHP['geometry'], sensorNames)
         newMSE = getMSE(features, df)
         newDistance = tempSHP['distance'][0]
-        rewards[index] = (oldDistance - newDistance) * (oldMSE - newMSE)
-        if rewards[index] == max(rewards):
+        return index, newMSE, newDistance
+
+    indexMSEDistance = Parallel(n_jobs=-1)(delayed(calculateRewardsRemoving)
+                                             (index, row) for index, row in selected.iterrows())
+    for value in indexMSEDistance:
+        index, newMSE, newDistance = value
+        reward = (oldDistance - newDistance) * (oldMSE - newMSE)
+        rewards[index] = reward
+        if reward == max(rewards):
             distanceOfBest = newDistance
+
     maxReward = max(rewards)
     maxIndex = rewards.index(maxReward)
     selected.loc[:, 'distance'] = distanceOfBest
     rowToMove = selected.loc[[maxIndex]].copy()
     UHP = gpd.GeoDataFrame(pd.concat([unselected, rowToMove], ignore_index=True), crs=unselected.crs)
-    selected = selected.drop(maxIndex)
+    selected = selected.drop(maxIndex).reset_index(drop=True)
     return UHP, selected
 
 
 arProb = 0  # probability of adding (0) and removing (1)
 rbProb = 1  # probability of random (1) and best (0)
-L = 30  # number of loops
+L = 60  # number of loops
 loopCount = 0
 pointsInBudget = getPointsInBudget(UHP_gdf, SHP_gdf)
 minMSE = 1000
@@ -152,7 +181,6 @@ y = []
 line, = ax2.plot(x, y)
 ax2.set_xlabel('Loop iteration')
 ax2.set_ylabel('MSE')
-
 
 def updateMSEPlot(newX, newY):
     x.append(newX)
@@ -169,7 +197,7 @@ if len(UHP_gdf) + len(SHP_gdf) != len(HP_gdf):
     exit(1)
 while rbProb > 0:
     loopCount += 1
-    print("Loop iteration ", loopCount)
+    print("Loop iteration ", loopCount, ' of ', L)
     raProb = rbProb * (1 - arProb)  # random add
     rrProb = rbProb * arProb  # random remove
     baProb = (1 - rbProb) * (1 - arProb)  # best add
@@ -198,7 +226,6 @@ while rbProb > 0:
     else:
         totalDistance = SHP_gdf['distance'][0]
 
-
     print('Total Distance Traveled: ', totalDistance)
     print('Total Number of Hover Points Visited: ', len(SHP_gdf))
     print('mse: ', mse)
@@ -217,5 +244,11 @@ while rbProb > 0:
 
 bestSHP = findMinTravelDistance(bestSHP)
 ax2.scatter(iterationOfBest, minMSE, color='red', label='Lowest MSE')
+print(f"lowest mse: {minMSE}")
 plotPath(ax, bestSHP)
+endTime = time.time()
+runTime = endTime - startTime
+minutes = int(runTime // 60)
+seconds = int(runTime % 60)
+print(f"Runtime: {minutes} minutes {seconds} seconds")
 plt.show()
