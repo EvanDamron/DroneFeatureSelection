@@ -1,5 +1,5 @@
 # epsilon squared greedy algorithm to find the optimal set of hover points to predict the other features without
-# violating distance budget (simplification of energy-of-drone budget)
+# violating battery-of-drone budget
 
 from mapping import processSHP, findMinTravelDistance, plotPath, getSensorNames
 import geopandas as gpd
@@ -19,6 +19,11 @@ maxDistance = 4000
 ax, HP_gdf, sensorNames = processSHP(positionFilePath, communicationRadius)
 # HP_gdf = HP_gdf.sample(n=20)  # Use this to test, reduces runtime
 df = processData(dataFolderPath)
+sensorsWithData = set(df.columns)
+sensorNames = {point: sensors for point, sensors in sensorNames.items() if any(sensor in sensorsWithData for sensor in sensors)}
+pointsToRemove = [point for point in sensorNames.keys() if not sensorNames[point]]
+sensorNames = {point: sensorNames[point] for point in sensorNames.keys() if sensorNames[point]}
+HP_gdf = HP_gdf.loc[HP_gdf.geometry.isin(sensorNames.keys())]
 
 SHP_gdf = gpd.GeoDataFrame()
 SHP_gdf['geometry'] = None
@@ -28,27 +33,52 @@ SHP_gdf.crs = 'EPSG:3857'  # pseudo-mercator
 UHP_gdf.crs = 'EPSG:3857'
 outOfBudget = False
 
+# made-up drone specs
+energyBudget = 200000  # battery life of drone in joules
+joulesPerMeter = 50  # Joules burned per meter traveled
+joulesPerSecond = 40  # Joules burned per second of hovering and collecting data
+timeOf1 = 30  # amount of seconds it takes to collect data at HP in range of 1 sensor
+timeOf2 = 60  # amount of seconds it takes to collect data at HP in range of 2 sensors
+timeOf3 = 90  # amount of seconds it takes to collect data at HP in range of 3 sensors
 
-# determine what points can be visited without violating distance budget
+#get the total energy cost to travel to all the selected hover points and collect data from them
+def getEnergy(selected):
+    energy = 0
+    selected, distance = findMinTravelDistance(selected)
+    energy += distance * joulesPerMeter
+    for hoverPoint in selected['geometry']:
+        numCorrespondingSensors = len(sensorNames[hoverPoint])
+        if numCorrespondingSensors == 1:
+            energy += timeOf1 * joulesPerSecond
+        elif numCorrespondingSensors == 2:
+            energy += timeOf2 * joulesPerSecond
+        elif numCorrespondingSensors == 3:
+            energy += timeOf3 * joulesPerSecond
+        else:
+            print('ERROR: HOVERPOINT CORRESPONDS TO MORE THAN 3 SENSORS')
+            exit(1)
+    selected['energy'] = energy
+    return selected, distance
+
+# determine what points can be visited without violating Energy budget
 def getPointsInBudget(unselected, selected):
     inBudgetHP = unselected.copy()
-    def calculateDistanceIfAdded(index, row):
+    def calculateEnergyIfAdded(index, row):
         extractedRow = gpd.GeoDataFrame([row], geometry='geometry', crs=unselected.crs)
         tempSHP = gpd.GeoDataFrame(pd.concat([selected, extractedRow], ignore_index=True), crs=unselected.crs)
-        tempSHP = findMinTravelDistance(tempSHP)
-        distanceIfAdded = tempSHP['distance'][0]
-        return index, distanceIfAdded
+        tempSHP, _ = getEnergy(tempSHP)
+        return index, tempSHP['energy'][0]
 
-    indexesDistances = Parallel(n_jobs=-1)(delayed(calculateDistanceIfAdded)(index, row) for index, row in inBudgetHP.iterrows())
-    indexesDistances.sort(key=lambda x: x[0])
-    for value in indexesDistances:
-        index, distance = value
-        if distance > maxDistance:
+    indexesEnergy = Parallel(n_jobs=-1)(delayed(calculateEnergyIfAdded)(index, row) for index, row in inBudgetHP.iterrows())
+    indexesEnergy.sort(key=lambda x: x[0])
+    for value in indexesEnergy:
+        index, energy = value
+        if energy > energyBudget:
             inBudgetHP = inBudgetHP.drop(index)
         else:
-            inBudgetHP.at[index, 'distanceIfAdded'] = distance
-    if 'distance' in inBudgetHP.columns:
-        inBudgetHP.drop('distance', axis=1, inplace=True)
+            inBudgetHP.at[index, 'energyIfAdded'] = energy
+    if 'energy' in inBudgetHP.columns:
+        inBudgetHP.drop('energy', axis=1, inplace=True)
     inBudgetHP = inBudgetHP.reset_index(drop=True)
     return inBudgetHP
 
@@ -59,12 +89,12 @@ def addRandomHP(unselected, unselectedIB, selected):
         print('No more hover points within budget')
         return unselected, selected
     randomRow = unselectedIB.sample(n=1)
-    randomRow.rename(columns={'distanceIfAdded': 'distance'}, inplace=True)
+    randomRow.rename(columns={'energyIfAdded': 'energy'}, inplace=True)
     randomRow = randomRow.reset_index(drop=True)
     pointAdded = randomRow.iloc[0]['geometry']
     unselected = unselected[unselected['geometry'] != pointAdded].reset_index(drop=True)
     SHP = gpd.GeoDataFrame(pd.concat([selected, randomRow], ignore_index=True), crs=selected.crs)
-    SHP['distance'] = randomRow['distance'][0]
+    SHP['energy'] = randomRow['energy'][0]
     return unselected, SHP
 
 
@@ -72,28 +102,29 @@ def addRandomHP(unselected, unselectedIB, selected):
 def remRandomHP(unselected, selected):
     print('REMOVE RANDOM')
     if selected.empty:
+        print('selected is empty')
         return selected
     rowToMove = selected.sample(n=1)
+    del rowToMove['energy']
     UHP = gpd.GeoDataFrame(pd.concat([unselected, rowToMove], ignore_index=True), crs=unselected.crs)
-    if 'distance' in UHP.columns:
-        UHP.drop('distance', axis=1, inplace=True)
+    # if 'energy' in UHP.columns:
+    #     UHP.drop('energy', axis=1, inplace=True)
     selected = selected.drop(index=rowToMove.index)
     return UHP, selected
 
 
-# Add the best in-budget-hoverpoint to selected, best = max((oldDistance - newDistance) * (oldMSE - newMSE))
+# Add the best in-budget-hoverpoint to selected, best = max((oldEnergy - newEnergy) * (oldMSE - newMSE))
 
 def addBestHP(unselected, unselectedIB, selected):
     print("ADD BEST")
     if unselectedIB.empty:
         print('No more hover points within budget')
         return unselected, selected
-    rewards = [float('-inf')] * len(unselectedIB)
     if selected.empty:  # never happens in actual greedy alg
-        oldDistance = 0
+        oldEnergy = 0
         oldMSE = 999999999
     else:
-        oldDistance = selected['distance'][0]
+        oldEnergy = selected['energy'][0]
         features = getSensorNames(selected['geometry'], sensorNames)
         oldMSE = getMSE(features, df)
 
@@ -103,8 +134,8 @@ def addBestHP(unselected, unselectedIB, selected):
         tempSHP = gpd.GeoDataFrame(pd.concat([selected, extractedRow], ignore_index=True), crs=unselectedIB.crs)
         features = getSensorNames(tempSHP['geometry'], sensorNames)
         newMSE = getMSE(features, df)
-        newDistance = unselectedIB['distanceIfAdded'][index]
-        reward = (oldDistance - newDistance) * (oldMSE - newMSE)
+        newEnergy = unselectedIB['energyIfAdded'][index]
+        reward = (oldEnergy - newEnergy) * (oldMSE - newMSE)
         return index, reward
 
     indexesRewards = Parallel(n_jobs=-1)(delayed(calculateRewardsAdding)
@@ -115,10 +146,10 @@ def addBestHP(unselected, unselectedIB, selected):
     maxReward = max(rewards)
     maxIndex = rewards.index(maxReward)
 
-    distanceOfBest = unselectedIB['distanceIfAdded'][maxIndex]
     rowToMove = unselectedIB.loc[[maxIndex]].copy()
-    rowToMove.rename(columns={'distanceIfAdded': 'distance'}, inplace=True)
-    selected.loc[:, 'distance'] = distanceOfBest
+    rowToMove.rename(columns={'energyIfAdded': 'energy'}, inplace=True)
+    rowToMove = rowToMove.reset_index(drop=True)
+    selected.loc[:, 'energy'] = rowToMove['energy'][0]
     rowToMovePoint = rowToMove['geometry'].iloc[0]
     unselected = unselected[unselected['geometry'] != rowToMovePoint]
     selected = gpd.GeoDataFrame(pd.concat([selected, rowToMove], ignore_index=True), crs=unselectedIB.crs)
@@ -129,38 +160,36 @@ def addBestHP(unselected, unselectedIB, selected):
 def remBestHP(unselected, selected):
     print('REMOVE BEST')
     rewards = [float('-inf')] * len(selected)
-    if selected.empty:  # never happens in actual greedy alg
+    if selected.empty:  # shouldn't happen in actual greedy alg, used for testing
         return unselected, selected
     elif len(selected) == 1:
         return remRandomHP(unselected, selected)
     else:
-        oldDistance = selected['distance'][0]
-        points = selected['geometry'].copy()
-        features = getSensorNames(points, sensorNames)
+        oldEnergy = selected['energy'][0]
+        features = getSensorNames(selected['geometry'], sensorNames)
         oldMSE = getMSE(features, df)
 
-    def calculateRewardsRemoving(index, row):
+    def calculateRewardsRemoving(index):
         print('index ', index + 1, 'of', len(selected))
-        tempSHP = selected.drop(index=index)
-        tempSHP = tempSHP.reset_index(drop=True)
-        tempSHP = findMinTravelDistance(tempSHP)
+        tempSHP = selected.drop(index=index).reset_index(drop=True)
+        tempSHP, _ = getEnergy(tempSHP)
         features = getSensorNames(tempSHP['geometry'], sensorNames)
         newMSE = getMSE(features, df)
-        newDistance = tempSHP['distance'][0]
-        return index, newMSE, newDistance
+        newEnergy = tempSHP['energy'][0]
+        return index, newMSE, newEnergy
 
-    indexMSEDistance = Parallel(n_jobs=-1)(delayed(calculateRewardsRemoving)
-                                             (index, row) for index, row in selected.iterrows())
-    for value in indexMSEDistance:
-        index, newMSE, newDistance = value
-        reward = (oldDistance - newDistance) * (oldMSE - newMSE)
+    indexMSEEnergy = Parallel(n_jobs=-1)(delayed(calculateRewardsRemoving)
+                                             (index) for index, _ in selected.iterrows())
+    for value in indexMSEEnergy:
+        index, newMSE, newEnergy = value
+        reward = (oldEnergy - newEnergy) * (oldMSE - newMSE)
         rewards[index] = reward
         if reward == max(rewards):
-            distanceOfBest = newDistance
+            energyOfBest = newEnergy
 
     maxReward = max(rewards)
     maxIndex = rewards.index(maxReward)
-    selected.loc[:, 'distance'] = distanceOfBest
+    selected.loc[:, 'energy'] = energyOfBest
     rowToMove = selected.loc[[maxIndex]].copy()
     UHP = gpd.GeoDataFrame(pd.concat([unselected, rowToMove], ignore_index=True), crs=unselected.crs)
     selected = selected.drop(maxIndex).reset_index(drop=True)
@@ -169,7 +198,7 @@ def remBestHP(unselected, selected):
 
 arProb = 0  # probability of adding (0) and removing (1)
 rbProb = 1  # probability of random (1) and best (0)
-L = 60  # number of loops
+L = 50 # number of loops
 loopCount = 0
 pointsInBudget = getPointsInBudget(UHP_gdf, SHP_gdf)
 minMSE = 1000
@@ -195,7 +224,7 @@ def updateMSEPlot(newX, newY):
 if len(UHP_gdf) + len(SHP_gdf) != len(HP_gdf):
     print('ERROR: SELECTED + UNSELECTED != HP')
     exit(1)
-while rbProb > 0:
+while loopCount < L:
     loopCount += 1
     print("Loop iteration ", loopCount, ' of ', L)
     raProb = rbProb * (1 - arProb)  # random add
@@ -222,29 +251,32 @@ while rbProb > 0:
         bestSHP = SHP_gdf.copy()
         iterationOfBest = loopCount
     if SHP_gdf.empty:
-        totalDistance = 0
+        totalEnergy = 0
     else:
-        totalDistance = SHP_gdf['distance'][0]
+        totalEnergy = SHP_gdf['energy'][0]
 
-    print('Total Distance Traveled: ', totalDistance)
+    print(f"This set of hoverpoints requires {totalEnergy} Joules out of the"
+          f" {energyBudget} Joules in the drone's battery")
     print('Total Number of Hover Points Visited: ', len(SHP_gdf))
-    print('mse: ', mse)
+    print(f"current mse: {mse}, lowest mse yet: {minMSE}")
     updateMSEPlot(loopCount, mse)
     pointsInBudget = getPointsInBudget(UHP_gdf, SHP_gdf)
 
     if len(UHP_gdf) == 0:
-        arProb = totalDistance / maxDistance
+        arProb = totalEnergy / energyBudget
     else:
-        arProb = (totalDistance / maxDistance) * (
+        arProb = (energyBudget / energyBudget) * (
                 1 - (len(pointsInBudget) / len(UHP_gdf)))  # as we approach budget, more likely to remove
     if len(UHP_gdf) + len(SHP_gdf) != len(HP_gdf):
         print('ERROR: SELECTED + UNSELECTED != HP')
         print(len(SHP_gdf), '+', len(UHP_gdf), ' != ', len(HP_gdf))
         break
 
-bestSHP = findMinTravelDistance(bestSHP)
+bestSHP, distanceOfBest = getEnergy(bestSHP)
 ax2.scatter(iterationOfBest, minMSE, color='red', label='Lowest MSE')
-print(f"lowest mse: {minMSE}")
+print(f"The best path's mse was {minMSE}, and it was found on the {iterationOfBest}th iteration")
+print(f"It consumed {bestSHP['energy'][0]} joules and traveled {distanceOfBest} meters")
+print(f"sensors used: {getSensorNames(bestSHP['geometry'], sensorNames)}")
 plotPath(ax, bestSHP)
 endTime = time.time()
 runTime = endTime - startTime
