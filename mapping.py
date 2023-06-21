@@ -54,7 +54,6 @@ def processSHP(filePath, commRadius):
     rangeCircles = sensorsM
     rangeCircles['Communication Range'] = commRadius  # range(40, 40 + len(rangeCircles))
     rangeCircles['geometry'] = sensorsM['geometry'].buffer(rangeCircles['Communication Range'])
-    print(rangeCircles.columns)
     for circle in rangeCircles['geometry']:
         x, y = circle.exterior.xy
         vertices = list(zip(x, y))
@@ -92,8 +91,8 @@ def processSHP(filePath, commRadius):
 # output: gdf with ordered hover points and new 'distance' column to travel this path
 def findMinTravelDistance(hoverPoints):
     points = np.array([(point.x, point.y) for point in hoverPoints.geometry])
-    orderedHoverPoints = TSP.hoverPointsTSP(points)
-    return orderedHoverPoints
+    orderedHoverPoints, distance = TSP.hoverPointsTSP(points)
+    return orderedHoverPoints, distance
 
 
 # plot lines between selected geometry points in the order provided
@@ -128,4 +127,4 @@ def testMapping():
     plotPath(ax, selectedHoverPoints)
     plt.show()
 
-testMapping()
+# testMapping() 
