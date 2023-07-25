@@ -11,7 +11,8 @@ def hoverPointsTSP(points):
     depotLocation = (0, 0)
     points = np.insert(points, 0, depotLocation, axis=0)
     distanceMatrix = euclidean_distance_matrix(points)
-    permutation, distance = solve_tsp_local_search(distanceMatrix)
+    initPerm = list(range(len(points)))
+    permutation, distance = solve_tsp_local_search(distance_matrix=distanceMatrix, x0=initPerm)
     orderedPoints = [points[i] for i in permutation if i != 0]
     gdf = gpd.GeoDataFrame(geometry=[Point(x, y) for x, y in orderedPoints], crs='EPSG:3857')
     return gdf, distance
