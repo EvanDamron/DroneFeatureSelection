@@ -83,14 +83,14 @@ def testModels(dataFrame):
 
             foldMSEValues = []
 
-            x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2, random_state=42)
+            x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2, shuffle=False)
             pipeline = Pipeline([
                 ('scaler', StandardScaler()),
                 ('regressor', TransformedTargetRegressor(regressor=model, transformer=StandardScaler()))
             ])
             pipeline.fit(x_train, y_train)
             predictions = pipeline.predict(x_test)
-            #Calculate mean squared error of one model with one particular group as target
+            #Calculate mean squared error of one model with one particular group as target, and one particular fold as testing data
             groupMSE = mean_squared_error(y_test, predictions)
             groupMSEValues.append(groupMSE)
         avgModelMSE = np.mean(groupMSEValues)
@@ -105,7 +105,7 @@ def selectModel():
     df = processData(dataFolder)
     testModels(df)
 
-#selectModel()
+# selectModel()
 #using gradient boosting regressor, get mse of given features, with nonselected features as the target
 def getMSE(selectedSensors, df):
     sensors = df.columns.tolist()
@@ -113,14 +113,26 @@ def getMSE(selectedSensors, df):
     if len(featureSensors) == 0:
         return float('inf')
     targetSensors = [sensor for sensor in sensors if sensor not in featureSensors]
+    if len(targetSensors) == 0:
+        return 0
     x = df[featureSensors]
     y = df[targetSensors]
-    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2, random_state=42)
+    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2)
     pipeline = Pipeline([
         ('scaler', StandardScaler()),
-        ('regressor', TransformedTargetRegressor(regressor=MultiOutputRegressor(GradientBoostingRegressor()),
-                                                 transformer=StandardScaler()))
+        ('regressor', TransformedTargetRegressor(
+            regressor=MultiOutputRegressor(GradientBoostingRegressor(random_state=42)),
+            transformer=StandardScaler()
+        ))
     ])
+    if len(targetSensors) == 1:
+        pipeline = Pipeline([
+            ('scaler', StandardScaler()),
+            ('regressor', TransformedTargetRegressor(
+                regressor=GradientBoostingRegressor(random_state=42),
+                transformer=StandardScaler()
+            ))
+        ])
     pipeline.fit(x_train, y_train)
     predictions = pipeline.predict(x_test)
     # Calculate mean squared error of one model with one particular group as target, and one particular fold as testing data
