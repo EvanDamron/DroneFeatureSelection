@@ -1,21 +1,19 @@
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import pyproj
-from shapely.geometry import Point
+from shapely.geometry import Point, MultiPolygon, Polygon
 import TSP
 import numpy as np
 
 
 # turn shp file, which is in long/lat degrees into meters xy axis. treating 0,0 as the depot
 def processSHP(filePath, commRadius):
-    sensorsD = gpd.read_file(filePath)  # sensors Degrees
-    sensorsM = sensorsD  # sensors in meters
-
-    # convert sensorsD to sensorsM, shift numbers close to 0
+    sensors = gpd.read_file(filePath)
+    # convert degrees to meters and shift numbers close to 0
     def simplifyPlot(gdfInput):
         # Define the input and output coordinate systems
         input_crs = gdfInput.crs
-        output_crs = pyproj.CRS.from_epsg(3857)  # EPSG code for WGS 84 / Pseudo-Mercator
+        output_crs = pyproj.CRS.from_epsg(3857)  # EPSG code for WGS 84 Pseudo-Mercator
 
         # Perform the coordinate transformation from degrees to meters
         transformer = pyproj.Transformer.from_crs(input_crs, output_crs, always_xy=True)
@@ -35,25 +33,25 @@ def processSHP(filePath, commRadius):
 
         return gdfInput
 
-    simplifyPlot(sensorsM)
+    sensors = simplifyPlot(sensors)
     # Rename the second and third columns
     new_column_names = ['x', 'y']
-    sensorsM = sensorsM.rename(columns={sensorsM.columns[1]: new_column_names[0],
-                                        sensorsM.columns[2]: new_column_names[1]})
+    sensors = sensors.rename(columns={sensors.columns[1]: new_column_names[0],
+                                        sensors.columns[2]: new_column_names[1]})
     fig, ax = plt.subplots(figsize=(8, 8))
 
     # Zoom out plot
     padding = 100
-    ax.set_xlim(min(sensorsM['x']) - padding, max(sensorsM['x']) + padding)
-    ax.set_ylim(min(sensorsM['y']) - padding, max(sensorsM['y']) + padding)
+    ax.set_xlim(min(sensors['x']) - padding, max(sensors['x']) + padding)
+    ax.set_ylim(min(sensors['y']) - padding, max(sensors['y']) + padding)
 
     # Plot the sensor points
-    sensorsM.plot(ax=ax, color='blue', markersize=50, alpha=0.7)
+    sensors.plot(ax=ax, color='blue', markersize=50, alpha=0.7)
 
     # Add circles and find hover points
-    rangeCircles = sensorsM
+    rangeCircles = sensors.copy()
     rangeCircles['Communication Range'] = commRadius  # range(40, 40 + len(rangeCircles))
-    rangeCircles['geometry'] = sensorsM['geometry'].buffer(rangeCircles['Communication Range'])
+    rangeCircles['geometry'] = sensors['geometry'].buffer(rangeCircles['Communication Range'])
     for circle in rangeCircles['geometry']:
         x, y = circle.exterior.xy
         vertices = list(zip(x, y))
@@ -69,6 +67,8 @@ def processSHP(filePath, commRadius):
     hoverPoints = hoverPoints.drop_duplicates(subset='geometry_str')
     hoverPoints = hoverPoints.drop('geometry_str', axis=1)
     hoverPoints.reset_index(drop=True, inplace=True)
+
+
     hoverPoints.plot(ax=ax, color='yellow', markersize=10, alpha=1)
 
     #create dictionary to correspond hover points to sensors
@@ -116,15 +116,15 @@ def getSensorNames(points, sensorNames):
 
 def testMapping():
     shpFilePath = 'CAF_Sensor_Dataset_2/CAF_sensors.shp'
-    communicationRadius = 70
+    communicationRadius = 90
     ax, hoverPoints, sensorNames = processSHP(shpFilePath, communicationRadius)
     # select random subset of 40 rows
     selectedHoverPoints = hoverPoints.sample(10)
     features = getSensorNames(selectedHoverPoints['geometry'], sensorNames)
-    print(features)
-    selectedHoverPoints = findMinTravelDistance(selectedHoverPoints)
-    print(selectedHoverPoints.head(100))
+    print(f"sensors selected:\n{features}")
+    print(len(hoverPoints))
+    selectedHoverPoints, distance = findMinTravelDistance(selectedHoverPoints)
     plotPath(ax, selectedHoverPoints)
     plt.show()
 
-# testMapping() 
+# testMapping()
