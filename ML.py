@@ -117,7 +117,7 @@ def getMSE(selectedSensors, df):
         return 0
     x = df[featureSensors]
     y = df[targetSensors]
-    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2)
+    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2, shuffle=False)
     pipeline = Pipeline([
         ('scaler', StandardScaler()),
         ('regressor', TransformedTargetRegressor(
@@ -138,3 +138,4 @@ def getMSE(selectedSensors, df):
     # Calculate mean squared error of one model with one particular group as target, and one particular fold as testing data
     mse = mean_squared_error(y_test, predictions)
     return mse
+
