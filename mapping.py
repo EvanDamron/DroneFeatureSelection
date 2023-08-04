@@ -1,13 +1,16 @@
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import pyproj
-from shapely.geometry import Point, MultiPolygon, Polygon
+from shapely.geometry import Point
 import TSP
 import numpy as np
-
+from SetCoverPy import setcover
+import math
+from ML import processData
+import random
 
 # turn shp file, which is in long/lat degrees into meters xy axis. treating 0,0 as the depot
-def processSHP(filePath, commRadius):
+def processSHP(filePath, height, commRadius):
     sensors = gpd.read_file(filePath)
     # convert degrees to meters and shift numbers close to 0
     def simplifyPlot(gdfInput):
@@ -46,11 +49,22 @@ def processSHP(filePath, commRadius):
     ax.set_ylim(min(sensors['y']) - padding, max(sensors['y']) + padding)
 
     # Plot the sensor points
-    sensors.plot(ax=ax, color='blue', markersize=50, alpha=0.7)
+    sensors.plot(ax=ax, color='blue', markersize=25, alpha=0.7)
 
+    hoverPoints, sensorNames = getHoverPoints(sensors, commRadius, height, ax)
+    # Set plot title and labels
+    ax.set_title('Sensors with Communication Ranges (Meters)')
+    ax.set_xlabel('East')
+    ax.set_ylabel('North')
+    return fig, ax, hoverPoints, sensorNames
+
+
+def getHoverPoints(sensors, commRadius, height, ax):
     # Add circles and find hover points
+    droneRadius = (commRadius ** 2 - height ** 2) ** 0.5
+    print("DRONE RADIUS = ", droneRadius)
     rangeCircles = sensors.copy()
-    rangeCircles['Communication Range'] = commRadius  # range(40, 40 + len(rangeCircles))
+    rangeCircles['Communication Range'] = droneRadius
     rangeCircles['geometry'] = sensors['geometry'].buffer(rangeCircles['Communication Range'])
     for circle in rangeCircles['geometry']:
         x, y = circle.exterior.xy
@@ -68,10 +82,7 @@ def processSHP(filePath, commRadius):
     hoverPoints = hoverPoints.drop('geometry_str', axis=1)
     hoverPoints.reset_index(drop=True, inplace=True)
 
-
-    hoverPoints.plot(ax=ax, color='yellow', markersize=10, alpha=1)
-
-    #create dictionary to correspond hover points to sensors
+    # create dictionary to correspond hover points to sensors
     sensorNames = {}
     for hoverPoint in hoverPoints['geometry']:
         sensorNames[hoverPoint] = []
@@ -79,19 +90,63 @@ def processSHP(filePath, commRadius):
             if hoverPoint.within(circle):
                 sensorName = rangeCircles.loc[rangeCircles['geometry'] == circle, 'Location'].values[0]
                 sensorNames[hoverPoint].append(sensorName)
-    # Set plot title and labels
-    ax.set_title('Sensors with Communication Ranges (Meters)')
-    ax.set_xlabel('East')
-    ax.set_ylabel('North')
-    return ax, hoverPoints, sensorNames
+    return hoverPoints, sensorNames
 
 
+def generateSensorsGrid(height, commRadius, df, areaLength=750, areaWidth=750):
+    random.seed(42)
+    fig, ax = plt.subplots(figsize=(8, 8))
+    ax.set_xlim(-100, areaWidth + 100)
+    ax.set_ylim(-100, areaLength + 100)
+    distanceBetweenSensors = math.sqrt((areaWidth * areaLength) / len(df.columns))
+    numRows = math.ceil(areaWidth / distanceBetweenSensors)
+    numColumns = math.ceil(areaLength / distanceBetweenSensors)
+    intersectionPoints = []
+    for row in range(numRows):
+        for col in range(numColumns):
+            x = col * distanceBetweenSensors
+            y = row * distanceBetweenSensors
+            intersectionPoints.append(Point(x, y))
+    random.shuffle(intersectionPoints)
+    sensorPoints = intersectionPoints[:len(df.columns)]
+    sensorsGDF = gpd.GeoDataFrame(geometry=sensorPoints)
+    sensorsGDF['Location'] = df.columns
+    sensorsGDF.plot(ax=ax, markersize=30, color='blue')
+    hoverPoints, sensorNames = getHoverPoints(sensorsGDF, commRadius, height, ax)
+    return fig, ax, hoverPoints, sensorNames
+
+
+def generateSensorsUniformRandom(height, commRadius, df, areaLength=750, areaWidth=750, minDistanceScale=0.1):
+    random.seed(69)
+    minDistance = minDistanceScale * areaWidth
+    fig, ax = plt.subplots(figsize=(8, 8))
+    ax.set_xlim(-100, areaWidth + 100)
+    ax.set_ylim(-100, areaLength + 100)
+
+    sensorPoints = []
+    for _ in range(len(df.columns)):
+        while True:
+            x = random.uniform(0, areaLength)
+            y = random.uniform(0, areaWidth)
+            newPoint = Point(x, y)
+
+            if all(newPoint.distance(existingPoint) >= minDistance for existingPoint in sensorPoints):
+                sensorPoints.append(Point(x, y))
+                break
+    sensorsGDF = gpd.GeoDataFrame(geometry=sensorPoints)
+    sensorsGDF['Location'] = df.columns
+    sensorsGDF.plot(ax=ax, markersize=30, color='blue')
+    hoverPoints, sensorNames = getHoverPoints(sensorsGDF, commRadius, height, ax)
+    return fig, ax, hoverPoints, sensorNames
 
 # input: gdf with hover points as geometry column
 # output: gdf with ordered hover points and new 'distance' column to travel this path
-def findMinTravelDistance(hoverPoints):
+def findMinTravelDistance(hoverPoints, scramble=False):
     points = np.array([(point.x, point.y) for point in hoverPoints.geometry])
-    orderedHoverPoints, distance = TSP.hoverPointsTSP(points)
+    if not scramble:
+        orderedHoverPoints, distance = TSP.hoverPointsTSP(points)
+    else:
+        orderedHoverPoints, distance = TSP.hoverPointsTSP(points, scramble=True)
     return orderedHoverPoints, distance
 
 
@@ -106,6 +161,29 @@ def plotPath(ax, hoverPoints):
     ax.plot([coordinates[len(coordinates) - 1][0], 0], [coordinates[len(coordinates) - 1][1], 0], 'r-')  # return path
 
 
+# Only keeps the smallest amount of hoverpoints needed to cover all the sensors, used in RSEO
+def minSetCover(sensorNames, hoverPoints):
+    allSensors = sorted(set(sensor for sensors in sensorNames.values() for sensor in sensors))
+    # Create a mapping of sensors to their indices in the matrix
+    sensorIndexes = {sensor: i for i, sensor in enumerate(allSensors)}
+    numRows = len(allSensors)
+    numCols = len(sensorNames)
+    aMatrix = np.zeros((numRows, numCols), dtype=int)
+    for j, (point, sensors) in enumerate(sensorNames.items()):
+        for sensor in sensors:
+            i = sensorIndexes[sensor]
+            aMatrix[i, j] = True
+    sums = np.sum(aMatrix, axis=0)
+    cost = [value - ((value - 1) * .1) for value in sums]
+    solver = setcover.SetCover(amatrix=aMatrix, cost=cost)
+    result = solver.SolveSCP()
+    decisionList = solver.s
+    filteredHoverPoints = hoverPoints[decisionList]
+    filteredHoverPoints.reset_index(drop=True, inplace=True)
+    validPoints = set(filteredHoverPoints['geometry'])
+    filteredSensorNames = {point: value for point, value in sensorNames.items() if point in validPoints}
+    return filteredSensorNames, filteredHoverPoints
+
 def getSensorNames(points, sensorNames):
     corrSensorsSet = set()
     for point in points:
@@ -116,13 +194,17 @@ def getSensorNames(points, sensorNames):
 
 def testMapping():
     shpFilePath = 'CAF_Sensor_Dataset_2/CAF_sensors.shp'
-    communicationRadius = 90
-    ax, hoverPoints, sensorNames = processSHP(shpFilePath, communicationRadius)
-    # select random subset of 40 rows
+    communicationRadius = 70
+    height = 15
+    # fig, ax, hoverPoints, sensorNames = processSHP(shpFilePath, height, communicationRadius)
+    dataFolder = 'CAF_Sensor_Dataset_2/caf_sensors/Hourly'
+    df = processData(dataFolder)
+    fig, ax, hoverPoints, sensorNames = generateSensorsUniformRandom(height, communicationRadius, df)
+    print(f"total number of hoverPoints: {len(hoverPoints)}")
+    hoverPoints.plot(ax=ax, color='yellow', markersize=25)
     selectedHoverPoints = hoverPoints.sample(10)
     features = getSensorNames(selectedHoverPoints['geometry'], sensorNames)
     print(f"sensors selected:\n{features}")
-    print(len(hoverPoints))
     selectedHoverPoints, distance = findMinTravelDistance(selectedHoverPoints)
     plotPath(ax, selectedHoverPoints)
     plt.show()
