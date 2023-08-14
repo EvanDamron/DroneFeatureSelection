@@ -10,8 +10,6 @@ import numpy as np
 
 
 
-
-
 def processFiles(height, communicationRadius, minSet, generate):
     positionFilePath = 'CAF_Sensor_Dataset_2/CAF_sensors.shp'
     dataFolderPath = 'CAF_Sensor_Dataset_2/caf_sensors/Hourly'
@@ -117,7 +115,7 @@ def remRandomHP(unselected, selected):
 
 def addBestHP(unselected, unselectedIB, selected, rewardMode, thresholdFraction, sensorNames, df, energyWeight):
     print("ADD BEST")
-    rewards = []
+    rewards = [-10] * len(unselectedIB)
     if unselectedIB.empty:
         print('No more hover points within budget')
         return unselected, selected
@@ -146,27 +144,35 @@ def addBestHP(unselected, unselectedIB, selected, rewardMode, thresholdFraction,
         for value in indexMSEEnergy:
             index, newMSE, newEnergy = value
             reward = (oldMSE - newMSE)
-            rewards.append(reward)
+            rewards[index] = reward
     elif rewardMode == "ENERGY":
         for value in indexMSEEnergy:
             index, newMSE, newEnergy = value
             reward = (oldEnergy - newEnergy)
-            rewards.append(reward)
+            rewards[index] = reward
     elif rewardMode == "BOTH":
         for value in indexMSEEnergy:
             index, newMSE, newEnergy = value
             reward = (oldMSE - newMSE) * (oldEnergy - newEnergy)
-            rewards.append(reward)
+            rewards[index] = reward
     elif rewardMode == "NORMALIZED":
-        minMSE = min(value[1] for value in indexMSEEnergy)
-        maxMSE = max(value[1] for value in indexMSEEnergy)
-        minEnergy = min(value[2] for value in indexMSEEnergy)
-        maxEnergy = max(value[2] for value in indexMSEEnergy)
+        newIndexMSEEnergy = []
+        # calculate change in MSE and Energy
         for index, newMSE, newEnergy in indexMSEEnergy:
-            normalizedNewMSE = (newMSE - minMSE) / (maxMSE - minMSE)
-            normalizedNewEnergy = (newEnergy - minEnergy) / (maxEnergy - minEnergy)
-            reward = 1 - (normalizedNewEnergy * energyWeight + normalizedNewMSE) / 2
-            rewards.append(reward)
+            changeMSE = oldMSE - newMSE
+            changeEnergy = oldEnergy - newEnergy
+            newTuple = (index, changeMSE, changeEnergy)
+            newIndexMSEEnergy.append(newTuple)
+
+        minMSE = min(value[1] for value in newIndexMSEEnergy)
+        maxMSE = max(value[1] for value in newIndexMSEEnergy)
+        minEnergy = min(value[2] for value in newIndexMSEEnergy)
+        maxEnergy = max(value[2] for value in newIndexMSEEnergy)
+        for index, newMSE, newEnergy in newIndexMSEEnergy:
+            normalizedNewMSE = (newMSE - minMSE) / (maxMSE - minMSE) if maxMSE != minMSE else 0
+            normalizedNewEnergy = (newEnergy - minEnergy) / (maxEnergy - minEnergy) if maxEnergy != minEnergy else 0
+            reward = normalizedNewEnergy * energyWeight + normalizedNewMSE
+            rewards[index] = reward
     elif rewardMode == "THRESHOLD":
         indexOfBest = -1
         minEnergy = 999999999
@@ -180,12 +186,58 @@ def addBestHP(unselected, unselectedIB, selected, rewardMode, thresholdFraction,
             print("NO UNSELECTED FEATURES IN BUDGET AND ABOVE ACCURACY THRESHOLD")
             return unselected, selected
     if rewards:
+        # make sure not to add a redundant point
+        for index, newMSE, newEnergy in indexMSEEnergy:
+                if newMSE == oldMSE:
+                    rewards[index] = -999
         maxReward = max(rewards)
-        if maxReward == 0:
-            nonZeroRewards = [reward for reward in rewards if reward != 0]
-            maxReward = max(nonZeroRewards)
-        indexOfBest = rewards.index(maxReward)
+        indexesEnergiesOfBest = []
+        # get all the points resulting in the same mse
+        for index, newMSE, newEnergy in indexMSEEnergy:
+            if rewards[index] == maxReward:
+                indexesEnergiesOfBest.append((index, newEnergy))
+        if len(indexesEnergiesOfBest) == 1:
+            indexOfBest, energyOfBest = indexesEnergiesOfBest[0]
+        # if there is a tie, take the one that adds the sensors correlated and remove redundant sensors from selected
+        else:
+            points = []
+            for index, energy in indexesEnergiesOfBest:
+                point = unselectedIB.loc[index, 'geometry']
+                points.append(point)
+            tiedPointSensors = getSensorNames(points, sensorNames)
+            numTiedSensors = len(tiedPointSensors)
+            if numTiedSensors == 1:
+                indexOfBest = min(indexesEnergiesOfBest, key=lambda x: x[1])[0]
+            else:
+                print('REDUNDANCY CHECK')
+                numSensors = -1
+                pointOfInterest = None
+                for point in points:
+                    if len(sensorNames[point]) > numSensors:
+                        numSensors = len(sensorNames[point])
+                        pointOfInterest = point
+                uniqueOldPoints = set()
+                for pointInSelected in selected['geometry']:
+                    for sensor in sensorNames[pointInSelected]:
+                        if sensor in sensorNames[pointOfInterest]:
+                            uniqueOldPoints.add(pointInSelected)
+                oldPoints = list(uniqueOldPoints)
+                sensorsInOldPoints = set(getSensorNames(oldPoints, sensorNames))
+                sensorsInPointOfInterest = set(sensorNames[pointOfInterest])
+                if sensorsInPointOfInterest != sensorsInOldPoints.union(sensorsInPointOfInterest):
+                    indexOfBest = min(indexesEnergiesOfBest, key=lambda x: x[1])[0]
+                else:
+                    updatedSelected = selected[~selected['geometry'].isin(oldPoints)].copy()
+                    updatedUnselected = unselected[unselected['geometry'] != pointOfInterest].copy()
+                    newSelectedRow = {'geometry': [pointOfInterest], 'energy': [oldEnergy]}
+                    newSelectedGDF = gpd.GeoDataFrame(newSelectedRow, geometry='geometry', crs=selected.crs)
+                    updatedSelected = gpd.GeoDataFrame(pd.concat([updatedSelected, newSelectedGDF], ignore_index=True), crs=selected.crs)
+                    for point in oldPoints:
+                        newRow = gpd.GeoDataFrame({'geometry': [point]}, geometry='geometry', crs=selected.crs)
+                        updatedUnselected = gpd.GeoDataFrame(pd.concat([updatedUnselected, newRow], ignore_index=True), crs=selected.crs)
+                    return updatedUnselected, updatedSelected
 
+    print('Normal add')
     rowToMove = unselectedIB.loc[[indexOfBest]].copy()
     rowToMove.rename(columns={'energyIfAdded': 'energy'}, inplace=True)
     rowToMove = rowToMove.reset_index(drop=True)
@@ -199,7 +251,7 @@ def addBestHP(unselected, unselectedIB, selected, rewardMode, thresholdFraction,
 # Remove the best hover-point from selected
 def remBestHP(unselected, selected, rewardMode, thresholdFraction, sensorNames, df, energyWeight, joulesPerMeter, joulesPerSecond, dataSize, transferRate):
     print('REMOVE BEST')
-    rewards = []
+    rewards = [-999] * len(selected)
     if selected.empty:  # shouldn't happen in actual greedy alg, used for testing
         return unselected, selected
     elif len(selected) == 1:
@@ -208,6 +260,18 @@ def remBestHP(unselected, selected, rewardMode, thresholdFraction, sensorNames, 
         oldEnergy = selected['energy'][0]
         features = getSensorNames(selected['geometry'], sensorNames)
         oldMSE = getMSE(features, df)
+    # Check for any redundant hoverPoints
+    selectedSensors = []
+    for point in selected['geometry']:
+        selectedSensors.extend(sensorNames[point])
+    sensorsWithDuplicates = []
+    for sensor in selectedSensors:
+        if selectedSensors.count(sensor) > 1 and sensor not in sensorsWithDuplicates:
+            sensorsWithDuplicates.append(sensor)
+    if len(sensorsWithDuplicates) > 0:
+        redundancies = True
+    else:
+        redundancies = False
 
     def calculateRewardsRemoving(index):
         # print('index ', index + 1, 'of', len(selected))
@@ -226,27 +290,35 @@ def remBestHP(unselected, selected, rewardMode, thresholdFraction, sensorNames, 
         for value in indexMSEEnergy:
             index, newMSE, newEnergy = value
             reward = (oldMSE - newMSE)
-            rewards.append(reward)
+            rewards[index] = reward
     elif rewardMode == "ENERGY":
         for value in indexMSEEnergy:
             index, newMSE, newEnergy = value
             reward = (oldEnergy - newEnergy)
-            rewards.append(reward)
+            rewards[index] = reward
     elif rewardMode == "BOTH":
         for value in indexMSEEnergy:
             index, newMSE, newEnergy = value
             reward = (oldMSE - newMSE) * (oldEnergy - newEnergy)
-            rewards.append(reward)
+            rewards[index] = reward
     elif rewardMode == "NORMALIZED":
-        minMSE = min(value[1] for value in indexMSEEnergy)
-        maxMSE = max(value[1] for value in indexMSEEnergy)
-        minEnergy = min(value[2] for value in indexMSEEnergy)
-        maxEnergy = max(value[2] for value in indexMSEEnergy)
+        newIndexMSEEnergy = []
+        # calculate change in MSE and Energy
         for index, newMSE, newEnergy in indexMSEEnergy:
-            normalizedNewMSE = (newMSE - minMSE) / (maxMSE - minMSE)
-            normalizedNewEnergy = (newEnergy - minEnergy) / (maxEnergy - minEnergy)
-            reward = 1 - (normalizedNewEnergy * energyWeight + normalizedNewMSE) / 2
-            rewards.append(reward)
+            changeMSE = oldMSE - newMSE
+            changeEnergy = oldEnergy - newEnergy
+            newTuple = (index, changeMSE, changeEnergy)
+            newIndexMSEEnergy.append(newTuple)
+
+        minMSE = min(value[1] for value in newIndexMSEEnergy)
+        maxMSE = max(value[1] for value in newIndexMSEEnergy)
+        minEnergy = min(value[2] for value in newIndexMSEEnergy)
+        maxEnergy = max(value[2] for value in newIndexMSEEnergy)
+        for index, newMSE, newEnergy in newIndexMSEEnergy:
+            normalizedNewMSE = (newMSE - minMSE) / (maxMSE - minMSE) if maxMSE != minMSE else 0
+            normalizedNewEnergy = (newEnergy - minEnergy) / (maxEnergy - minEnergy) if maxEnergy != minEnergy else 0
+            reward = normalizedNewEnergy * energyWeight + normalizedNewMSE
+            rewards[index] = reward
     elif rewardMode == "THRESHOLD":
         indexOfBest = -1
         energyOfBest = 999999999
@@ -259,17 +331,110 @@ def remBestHP(unselected, selected, rewardMode, thresholdFraction, sensorNames, 
         if indexOfBest < 0:
             print("NO UNSELECTED FEATURES IN BUDGET AND ABOVE ACCURACY THRESHOLD")
             return unselected, selected
+
+    # When there are redundant features, only keep one that results in largest MSE
+    if redundancies:
+        print('REDUNDANCY CHECK')
+        # create nested list of indexes of points in range of a sensor collected 2+ times, and make sure no duplicates
+        # i.e. [[1,2], [2,3]] isnt allowed
+        indexesOfSensors = [[] for _ in range(len(sensorsWithDuplicates))]
+        for i, duplicateSensor in enumerate(sensorsWithDuplicates):
+            for idx, row in selected.iterrows():
+                if duplicateSensor in sensorNames[row['geometry']]:
+                    indexesOfSensors[i].append(idx)
+        filteredIndexes = []
+        seenIndexes = set()
+        for sublist in indexesOfSensors:
+            if not any(index in seenIndexes for index in sublist):
+                seenIndexes.update(sublist)
+                filteredIndexes.append(sublist)
+        indexesOfSensors = filteredIndexes
+
+        indexesToDrop = set()
+        indexesToAdd = None
+        for indexList in indexesOfSensors:
+            energyList = []
+            for idx in indexList:
+                for index, newMSE, newEnergy in indexMSEEnergy:
+                    if idx == index:
+                        energyList.append(newEnergy)
+            tempSHP = selected.copy()
+            tempUHP = unselected.copy()
+            rowsToCheck = tempSHP.loc[list(indexList)].copy()
+            assocSensors = getSensorNames(rowsToCheck['geometry'], sensorNames)
+            rowsToCheck.drop(columns=['energy'], inplace=True)
+            tempUHP = gpd.GeoDataFrame(pd.concat([tempUHP, rowsToCheck], ignore_index=True), crs=unselected.crs)
+            rowsToCheck['energyIfAdded'] = energyList
+            tempSHP = tempSHP.drop(index=list(indexList)).reset_index(drop=True)
+            # check for a point that covers all the redundant points, if there is one and it isn't already in
+            # rowsToCheck, add it
+            pointToAdd = None
+            for key, namesList in sensorNames.items():
+                sortedNamesList = sorted(namesList)
+                sortedAssocSensors = sorted(assocSensors)
+                if sortedNamesList == sortedAssocSensors:
+                    if not any(geom.equals(key) for geom in rowsToCheck['geometry']):
+                        pointToAdd = key
+                        pointToAddData = {'geometry': [pointToAdd], 'energy': oldEnergy}
+                        pointToAddRow = gpd.GeoDataFrame(pointToAddData, crs=tempSHP.crs)
+                        tempTempSHP = gpd.GeoDataFrame(pd.concat([tempSHP, pointToAddRow], ignore_index=True), crs=tempSHP.crs)
+                        tempTempSHP, _ = getEnergy(tempTempSHP, sensorNames, joulesPerMeter, joulesPerSecond, dataSize, transferRate)
+                        newEnergyIfAdded = tempTempSHP['energy'][0]
+                        pointToAddData = {'geometry': [pointToAdd], 'energyIfAdded': [newEnergyIfAdded]}
+                        pointToAddRow = gpd.GeoDataFrame(pointToAddData, crs=tempSHP.crs)
+                        rowsToCheck = gpd.GeoDataFrame(pd.concat([rowsToCheck, pointToAddRow], ignore_index=True), crs=rowsToCheck.crs)
+
+            rowsToCheck = rowsToCheck.reset_index(drop=True)
+            tempUHP, tempSHP = addBestHP(unselected=tempUHP, unselectedIB=rowsToCheck, selected=tempSHP,
+                                             rewardMode="NORMALIZED", energyWeight=energyWeight, df=df,
+                                             sensorNames=sensorNames, thresholdFraction=thresholdFraction)
+            # if we added a new overlap point
+            if pointToAdd is not None:
+                indexesToAdd = set()
+                indexesToAdd.update([index for index, geom in enumerate(unselected['geometry']) if geom == pointToAdd])
+                indexesToDrop.update(indexList)
+
+            else:
+                droppedIndexes = selected[~selected['geometry'].isin(tempSHP['geometry'])].index
+                indexesToDrop.update(droppedIndexes)
+        rowsToDrop = selected.loc[list(indexesToDrop)].copy()
+        rowsToDrop.drop(columns=['energy'])
+        if indexesToAdd is not None:
+            rowsToAdd = unselected.loc[list(indexesToAdd)].copy()
+            unselected = unselected.drop(indexesToAdd)
+            selected = selected.drop(indexesToDrop)
+            unselected = gpd.GeoDataFrame(pd.concat([unselected, rowsToDrop], ignore_index=True), crs=unselected.crs)
+            unselected.reset_index(drop=True, inplace=True)
+            selected = gpd.GeoDataFrame(pd.concat([selected, rowsToAdd], ignore_index=True), crs=unselected.crs)
+            selected.reset_index(drop=True, inplace=True)
+            return unselected, selected
+        else:
+            unselected = gpd.GeoDataFrame(pd.concat([unselected, rowsToDrop], ignore_index=True), crs=unselected.crs)
+            selected.reset_index(drop=True, inplace=True)
+            selected = selected.drop(indexesToDrop).reset_index(drop=True)
+            return unselected, selected
+
     if rewards:
-        indexOfBest = rewards.index(max(rewards))
+        maxReward = max(rewards)
+        indexesEnergiesOfBest = []
         for index, newMSE, newEnergy in indexMSEEnergy:
-            if index == indexOfBest:
-                energyOfBest = newEnergy
+            if rewards[index] == maxReward:
+                indexesEnergiesOfBest.append((index, newEnergy))
+    if len(indexesEnergiesOfBest) == 1:
+        indexOfBest, energyOfBest = indexesEnergiesOfBest[0]
+    elif len(indexesEnergiesOfBest) == 0:
+        print('Something went wrong...')
+        print(f"rewards\n {rewards}")
+        print(f"indexMSEEnergy\n {indexMSEEnergy}")
+        exit(0)
+    else:
+        print("indexesEnergiesOfBest was greater than one...")
 
     selected['energy'] = energyOfBest
     rowToMove = selected.loc[[indexOfBest]].copy()
-    UHP = gpd.GeoDataFrame(pd.concat([unselected, rowToMove], ignore_index=True), crs=unselected.crs)
+    unselected = gpd.GeoDataFrame(pd.concat([unselected, rowToMove], ignore_index=True), crs=unselected.crs)
     selected = selected.drop(indexOfBest).reset_index(drop=True)
-    return UHP, selected
+    return unselected, selected
 
 
 def createMSEPlot():
