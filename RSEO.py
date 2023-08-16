@@ -10,19 +10,19 @@ from algorithmHelpers import processFiles, getEnergy, remBestHP, createMSEPlot, 
     writeResults
 
 
-def RSEO(savePlots=False, pathPlotName="", msePlotName="", outputTextName="", droneHeight=15, rewardMode="NORMALIZED",
-         thresholdFraction=0.95, energyWeight=0, communicationRadius=70, energyBudget=60000, joulesPerMeter=10,
-         joulesPerSecond=35, dataSize=250, transferRate=9, minSet=True, generate=False):
-    fig1, ax1, allHoverPoints, selected, unselected, sensorNames, df = processFiles(height=droneHeight,
-                                            communicationRadius=communicationRadius, minSet=minSet, generate=generate)
+def RSEO(savePlots=False, pathPlotName="", msePlotName="", outputTextName="", droneHeight=15,
+         energyWeight=0, communicationRadius=70, energyBudget=60000, joulesPerMeter=10,
+         joulesPerSecond=35, dataSize=250, transferRate=9, minSet=True, generate=False, numSensors=37):
+    fig1, ax1, HP_gdf, selected, unselected, sensorNames, df = processFiles(droneHeight, communicationRadius, minSet,
+                                                                        generate, numSensors)
     x, y, line, ax2, fig2 = createMSEPlot()
     selected, distance = getEnergy(selected, sensorNames, joulesPerMeter, joulesPerSecond, dataSize, transferRate)
     loopCount = 0
     while selected['energy'][0] > energyBudget:
         loopCount += 1
-        unselected, selected = remBestHP(unselected, selected, rewardMode=rewardMode, sensorNames=sensorNames, df=df,
+        unselected, selected = remBestHP(unselected, selected, sensorNames=sensorNames, df=df,
                              energyWeight=energyWeight, joulesPerMeter=joulesPerMeter, joulesPerSecond=joulesPerSecond,
-                             dataSize=dataSize, transferRate=transferRate, thresholdFraction=thresholdFraction)
+                             dataSize=dataSize, transferRate=transferRate)
         selected, distance = getEnergy(selected, sensorNames, joulesPerMeter, joulesPerSecond, dataSize, transferRate)
         features = getSensorNames(selected['geometry'], sensorNames)
         mse = getMSE(features, df)
@@ -42,11 +42,6 @@ def RSEO(savePlots=False, pathPlotName="", msePlotName="", outputTextName="", dr
         plt.show()
 
 rSeed = 1
-np.random.seed(rSeed)
 random.seed(rSeed)
-# for i in range(5):
-#     pathPlotName = f"Budget Experiments/RSEO/60k/seed{rSeed}path{i + 1}"
-#     msePlotName = f"Budget Experiments/RSEO/60k/seed{rSeed}mse{i + 1}"
-#     outputTextName = f"Budget Experiments/RSEO/60k/seed{rSeed}output{i + 1}.txt"
-#     RSEO(savePlots=True, generate=True, pathPlotName=pathPlotName, msePlotName=msePlotName,
-#          energyBudget=60000, outputTextName=outputTextName)
+np.random.seed(rSeed)
+RSEO()
