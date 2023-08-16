@@ -14,14 +14,13 @@ import numpy as np
 from algorithmHelpers import processFiles, getEnergy, getPointsInBudget, addRandomHP, remRandomHP, addBestHP, remBestHP, \
     createMSEPlot, updateMSEPlot, printResults, writeResults, printTime
 
-np.random.seed(42)
-random.seed(42)
 
 
 def epsilonGreedy(numLoops, startTime, savePlots=False, pathPlotName="", msePlotName="", outputTextName="", droneHeight=15,
-                  addRewardMode="MSE", remRewardMode="MSE", thresholdFraction=0.95, energyWeight=1,
+                  addRewardMode="MSE", remRewardMode="MSE", thresholdFraction=0.95, energyWeight=0,
                   communicationRadius=70, energyBudget=60000, joulesPerMeter=10, joulesPerSecond=35, dataSize=250,
                   transferRate=9, minSet=False, generate=False):
+
     fig1, ax1, HP_gdf, UHP_gdf, SHP_gdf, sensorNames, df = processFiles(droneHeight, communicationRadius, minSet, generate)
     print(f"Total number of Hoverpoints: {len(HP_gdf)}")
     x, y, line, ax2, fig2 = createMSEPlot()
@@ -32,7 +31,7 @@ def epsilonGreedy(numLoops, startTime, savePlots=False, pathPlotName="", msePlot
     loopCount = 0
     pointsInBudget = getPointsInBudget(UHP_gdf, SHP_gdf, sensorNames, energyBudget, joulesPerMeter, joulesPerSecond,
                                        dataSize, transferRate)
-    print(pointsInBudget)
+
     minMSE = 1000
 
     # Make sure every hover-point in hp is accounted for in uhp and shp
@@ -90,7 +89,7 @@ def epsilonGreedy(numLoops, startTime, savePlots=False, pathPlotName="", msePlot
         if len(UHP_gdf) + len(SHP_gdf) != len(HP_gdf):
             print('ERROR: SELECTED + UNSELECTED != HP')
             print(len(SHP_gdf), '+', len(UHP_gdf), ' != ', len(HP_gdf))
-            break
+            exit(1)
     # get the cheapest path of best shp, because TSP is heuristic and gives different paths, some better than others
     minEnergy = 999999999999
     for i in range(10):
@@ -110,6 +109,9 @@ def epsilonGreedy(numLoops, startTime, savePlots=False, pathPlotName="", msePlot
     plotPath(ax1, bestSHP)
     bestSHP.plot(ax=ax1, color='red', markersize=10, alpha=1)
     printTime(startTime)
+    for key, value in sensorNames.items():
+        if len(value) == 1:
+            ax1.text(key.x, key.y, str(value[0]), fontsize=10, ha='center', va='bottom')
     if savePlots:
         writeResults(bestSHP, iterationOfBest, distanceOfBest, minMSE, sensorNames, outputTextName)
         fig1.savefig(pathPlotName, bbox_inches='tight')
@@ -117,108 +119,8 @@ def epsilonGreedy(numLoops, startTime, savePlots=False, pathPlotName="", msePlot
     else:
         plt.show()
 
-
-# Max-Reward-Energy Algorithm, instead of reward we use MSE
-def MRE(rewardMode="NORMALIZED", thresholdFraction=0.95, energyWeight=1, droneHeight=15, energyBudget=60000,
-        joulesPerMeter=10, joulesPerSecond=35, dataSize=250, transferRate=9):
-    print('MRE ALGORITHM')
-    communicationRadius = 40
-    fig1, ax1, HP_gdf, UHP, SHP, sensorNames, df = processFiles(droneHeight, communicationRadius)
-    x, y, line, ax2, fig2 = createMSEPlot()
-    minMSE = 10
-    loopCount = 0
-    while True:
-        # energyWeight = 1 - (loopCount / 10)
-        loopCount += 1
-        pointsInBudget = getPointsInBudget(UHP, SHP, sensorNames, energyBudget, joulesPerMeter, joulesPerSecond,
-                                           dataSize, transferRate)
-        if pointsInBudget.empty:
-            bestSHP, distanceOfBest = getEnergy(bestSHP, sensorNames, joulesPerMeter, joulesPerSecond, dataSize,
-                                                transferRate)
-            while bestSHP['energy'][0] > energyBudget:
-                bestSHP, _ = findMinTravelDistance(bestSHP, scramble=True)
-                bestSHP, distanceOfBest = getEnergy(bestSHP, sensorNames, joulesPerMeter, joulesPerSecond, dataSize,
-                                                    transferRate)
-            bestSHP = bestSHP.reset_index(drop=True)
-            printResults(finalSHP=bestSHP, finalMSE=minMSE, finalIteration=iterationOfBest,
-                         finalDistance=distanceOfBest,
-                         sensorNames=sensorNames)
-            break
-        UHP, SHP = addBestHP(unselected=UHP, unselectedIB=pointsInBudget, selected=SHP, rewardMode=rewardMode,
-                             thresholdFraction=thresholdFraction, df=df, sensorNames=sensorNames,
-                             energyWeight=energyWeight)
-        SHP = SHP.reset_index(drop=True)
-        UHP = UHP.reset_index(drop=True)
-        features = getSensorNames(SHP['geometry'], sensorNames)
-        mse = getMSE(features, df)
-        updateMSEPlot(newX=loopCount, newY=mse, ax=ax2, fig=fig2, x=x, y=y, line=line)
-        SHP, distance = getEnergy(SHP, sensorNames, joulesPerMeter, joulesPerSecond, dataSize, transferRate)
-        energy = SHP['energy'][0]
-        if mse < minMSE:
-            minMSE = mse
-            bestSHP = SHP
-            iterationOfBest = loopCount
-            print(f"MSE = {minMSE}, energy = {energy} / {energyBudget} joules")
-        else:
-            print(f"MSE = {mse}, energy = {energy} / {energyBudget} joules")
-    print('LAST SHP:\n')
-    printResults(finalSHP=SHP, finalIteration=loopCount, finalDistance=distance, finalMSE=mse, sensorNames=sensorNames)
-    ax2.scatter(iterationOfBest, minMSE, color='red', zorder=10)
-    plotPath(ax1, bestSHP)
-    bestSHP.plot(ax=ax1, color='red', markersize=10, alpha=1)
-    print('BEST SHP:\n')
-    printResults(finalSHP=bestSHP, finalIteration=iterationOfBest, finalDistance=distanceOfBest, finalMSE=minMSE,
-                 sensorNames=sensorNames)
-    # printTime(startTime=startTime)
-    plt.show()
-
-
-def SBS(rewardMode="MSE", thresholdFraction=0.95, energyWeight=1, energyBudget=60000, joulesPerMeter=10,
-        joulesPerSecond=35, dataSize=250, transferRate=9):
-    print('SEQUENTIAL BACKWARD SELECTION')
-    ax, HP_gdf, UHP, SHP, sensorNames, df = processFiles()
-    tempSHP = SHP
-    SHP = UHP
-    UHP = tempSHP
-    x, y, line, ax2, fig2 = createMSEPlot()
-    minMSE = 10
-    loopCount = 0
-    SHP, _ = getEnergy(SHP, sensorNames, joulesPerMeter, joulesPerSecond, dataSize, transferRate)
-    while True:
-        # energyWeight = 1 - (loopCount / 10)
-        loopCount += 1
-
-        UHP, SHP = remBestHP(unselected=UHP, selected=SHP, rewardMode=rewardMode,
-                             thresholdFraction=thresholdFraction, df=df, sensorNames=sensorNames,
-                             energyWeight=energyWeight, joulesPerMeter=joulesPerMeter, joulesPerSecond=joulesPerSecond, dataSize=dataSize, transferRate=transferRate)
-        SHP = SHP.reset_index(drop=True)
-        UHP = UHP.reset_index(drop=True)
-        features = getSensorNames(SHP['geometry'], sensorNames)
-        mse = getMSE(features, df)
-        updateMSEPlot(newX=loopCount, newY=mse, ax=ax2, fig=fig2, x=x, y=y, line=line)
-        SHP, distance = getEnergy(SHP, sensorNames, joulesPerMeter, joulesPerSecond, dataSize, transferRate)
-        energy = SHP['energy'][0]
-
-        print(f"MSE = {mse}, energy = {energy} / {energyBudget} joules")
-        if energy < energyBudget:
-            minMSE = mse
-            bestSHP = SHP
-            iterationOfBest = loopCount
-            bestSHP, distanceOfBest = getEnergy(bestSHP, sensorNames, joulesPerMeter, joulesPerSecond, dataSize,
-                                                transferRate)
-            bestSHP = bestSHP.reset_index(drop=True)
-            printResults(finalSHP=bestSHP, finalMSE=minMSE, finalIteration=iterationOfBest,
-                         finalDistance=distanceOfBest,
-                         sensorNames=sensorNames)
-            break
-
-    ax2.scatter(iterationOfBest, minMSE, color='red', zorder=10)
-    plotPath(ax, bestSHP)
-    bestSHP.plot(ax=ax, color='red', markersize=10, alpha=1)
-    # printTime(startTime=startTime)
-    plt.show()
-
-
+np.random.seed(42)
+random.seed(42)
 startTime = time.time()
-epsilonGreedy(numLoops=35, savePlots=False, generate=True,
-                  startTime=startTime, addRewardMode="NORMALIZED", remRewardMode="NORMALIZED", energyWeight=0)
+epsilonGreedy(numLoops=1, generate=True, startTime=startTime, addRewardMode='NORMALIZED', remRewardMode='NORMALIZED',
+              energyWeight=0)
