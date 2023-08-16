@@ -109,8 +109,8 @@ def generateSensorsUniformRandom(height, commRadius, df, numSensors, areaLength=
     sensorPoints = []
     for _ in range(numSensors):
         while True:
-            x = random.uniform(0, areaLength)
-            y = random.uniform(0, areaWidth)
+            x = random.uniform(0, areaWidth)
+            y = random.uniform(0, areaLength)
             newPoint = Point(x, y)
 
             if all(newPoint.distance(existingPoint) >= minDistance for existingPoint in sensorPoints):
