@@ -107,7 +107,7 @@ def generateSensorsUniformRandom(height, commRadius, df, numSensors, areaLength=
             newColumnName = f"SYNTHETIC{i + 1}"
             df[newColumnName] = df[oldColumnName] * 0.95
     sensorPoints = []
-    for _ in range(len(df.columns)):
+    for _ in range(numSensors):
         while True:
             x = random.uniform(0, areaLength)
             y = random.uniform(0, areaWidth)
