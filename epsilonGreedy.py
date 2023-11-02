@@ -324,64 +324,6 @@ def epsilonGreedyHybrid(numLoops, startTime, savePlots=False, pathPlotName="", m
 # epsilonGreedy(numLoops=200, generate=True, startTime=startTime, energyWeight=0, savePlots=False,
 #               energyBudget=50000, numSensors=50, addToOriginal=True, exhaustive=False)
 
-def IGNumSensorsTests():
-    # for i in range(1):
-    #     rSeed = i + 1
-    #     random.seed(rSeed)
-    #     np.random.seed(rSeed)
-    #     startTime = time.time()
-    #     pathPlotName = f"Experiments/numSensorsTests3/EGMI/50s/map{rSeed}path1"
-    #     msePlotName = f"Experiments/numSensorsTests3/EGMI/50s/map{rSeed}mse1"
-    #     outputTextName = f"Experiments/numSensorsTests3/EGMI/50s/map{rSeed}output1.txt"
-    #     epsilonGreedy(numLoops=200, generate=True, startTime=startTime, energyWeight=0, savePlots=True,
-    #                   energyBudget=50000, pathPlotName=pathPlotName, msePlotName=msePlotName,
-    #                   outputTextName=outputTextName, numSensors=50, addToOriginal=True, exhaustive=False)
-    for i in range(1):
-        rSeed = i + 1
-        random.seed(rSeed)
-        np.random.seed(rSeed)
-        startTime = time.time()
-        pathPlotName = f"Experiments/numSensorsTests3/EGMI/40s/map{rSeed}path1"
-        msePlotName = f"Experiments/numSensorsTests3/EGMI/40s/map{rSeed}mse1"
-        outputTextName = f"Experiments/numSensorsTests3/EGMI/40s/map{rSeed}output1.txt"
-        epsilonGreedy(numLoops=200, generate=True, startTime=startTime, energyWeight=0, savePlots=True,
-                      energyBudget=50000, pathPlotName=pathPlotName, msePlotName=msePlotName,
-                      outputTextName=outputTextName, numSensors=40, addToOriginal=True, exhaustive=False)
-    for i in range(1):
-        rSeed = i + 1
-        random.seed(rSeed)
-        np.random.seed(rSeed)
-        startTime = time.time()
-        pathPlotName = f"Experiments/numSensorsTests3/EGMI/60s/map{rSeed}path1"
-        msePlotName = f"Experiments/numSensorsTests3/EGMI/60s/map{rSeed}mse1"
-        outputTextName = f"Experiments/numSensorsTests3/EGMI/60s/map{rSeed}output1.txt"
-        epsilonGreedy(numLoops=200, generate=True, startTime=startTime, energyWeight=0, savePlots=True,
-                      energyBudget=50000, pathPlotName=pathPlotName, msePlotName=msePlotName,
-                      outputTextName=outputTextName, numSensors=60, addToOriginal=True, exhaustive=False)
-    for i in range(1):
-        rSeed = i + 1
-        random.seed(rSeed)
-        np.random.seed(rSeed)
-        startTime = time.time()
-        pathPlotName = f"Experiments/numSensorsTests3/EGMI/70s/map{rSeed}path1"
-        msePlotName = f"Experiments/numSensorsTests3/EGMI/70s/map{rSeed}mse1"
-        outputTextName = f"Experiments/numSensorsTests3/EGMI/70s/map{rSeed}output1.txt"
-        epsilonGreedy(numLoops=200, generate=True, startTime=startTime, energyWeight=0, savePlots=True,
-                      energyBudget=50000, pathPlotName=pathPlotName, msePlotName=msePlotName,
-                      outputTextName=outputTextName, numSensors=70, addToOriginal=True, exhaustive=False)
-    for i in range(1):
-        rSeed = i + 1
-        random.seed(rSeed)
-        np.random.seed(rSeed)
-        startTime = time.time()
-        pathPlotName = f"Experiments/numSensorsTests3/EGMI/30s/map{rSeed}path1"
-        msePlotName = f"Experiments/numSensorsTests3/EGMI/30s/map{rSeed}mse1"
-        outputTextName = f"Experiments/numSensorsTests3/EGMI/30s/map{rSeed}output1.txt"
-        epsilonGreedy(numLoops=200, generate=True, startTime=startTime, energyWeight=0, savePlots=True,
-                      energyBudget=50000, pathPlotName=pathPlotName, msePlotName=msePlotName,
-                      outputTextName=outputTextName, numSensors=30, addToOriginal=True, exhaustive=False)
-
-
 # IGNumSensorsTests()
 # rSeed = 1
 # random.seed(rSeed)
@@ -661,78 +603,6 @@ def IGorigTechTests():
 # synthNumSensorsTests()
 
 
-def IGNumSensorsTests40k():
-    for j in range(2):
-        for i in range(0, 5, 2):
-            rSeed = i
-            random.seed(rSeed)
-            np.random.seed(rSeed)
-            startTime = time.time()
-            pathPlotName = f"Experiments/numSensorsTests40k/EGMI/20s/map{rSeed}path{j+1}"
-            msePlotName = f"Experiments/numSensorsTests40k/EGMI/20s/map{rSeed}mse{j+1}"
-            outputTextName = f"Experiments/numSensorsTests40k/EGMI/20s/map{rSeed}output{j+1}.txt"
-            epsilonGreedy(numLoops=200, generate=True, startTime=startTime, energyWeight=0, savePlots=True,
-                          energyBudget=40000, pathPlotName=pathPlotName, msePlotName=msePlotName,
-                          outputTextName=outputTextName, numSensors=20, addToOriginal=True, exhaustive=False)
-        for i in range(0, 5, 2):
-            if i == 0:
-                rSeed = 3
-            else:
-                rSeed = i
-            random.seed(rSeed)
-            np.random.seed(rSeed)
-            startTime = time.time()
-            pathPlotName = f"Experiments/numSensorsTests40k/EGMI/30s/map{rSeed}path{j+1}"
-            msePlotName = f"Experiments/numSensorsTests40k/EGMI/30s/map{rSeed}mse{j+1}"
-            outputTextName = f"Experiments/numSensorsTests40k/EGMI/30s/map{rSeed}output{j+1}.txt"
-            epsilonGreedy(numLoops=200, generate=True, startTime=startTime, energyWeight=0, savePlots=True,
-                          energyBudget=40000, pathPlotName=pathPlotName, msePlotName=msePlotName,
-                          outputTextName=outputTextName, numSensors=30, addToOriginal=True, exhaustive=False)
-        for i in range(0, 5, 2):
-            rSeed = i
-            random.seed(rSeed)
-            np.random.seed(rSeed)
-            startTime = time.time()
-            pathPlotName = f"Experiments/numSensorsTests40k/EGMI/40s/map{rSeed}path{j+1}"
-            msePlotName = f"Experiments/numSensorsTests40k/EGMI/40s/map{rSeed}mse{j+1}"
-            outputTextName = f"Experiments/numSensorsTests40k/EGMI/40s/map{rSeed}output{j+1}.txt"
-            epsilonGreedy(numLoops=200, generate=True, startTime=startTime, energyWeight=0, savePlots=True,
-                          energyBudget=40000, pathPlotName=pathPlotName, msePlotName=msePlotName,
-                          outputTextName=outputTextName, numSensors=40, addToOriginal=True, exhaustive=False)
-        for i in range(0, 5, 2):
-            rSeed = i
-            random.seed(rSeed)
-            np.random.seed(rSeed)
-            startTime = time.time()
-            pathPlotName = f"Experiments/numSensorsTests40k/EGMI/50s/map{rSeed}path{j+1}"
-            msePlotName = f"Experiments/numSensorsTests40k/EGMI/50s/map{rSeed}mse{j+1}"
-            outputTextName = f"Experiments/numSensorsTests40k/EGMI/50s/map{rSeed}output{j+1}.txt"
-            epsilonGreedy(numLoops=200, generate=True, startTime=startTime, energyWeight=0, savePlots=True,
-                          energyBudget=40000, pathPlotName=pathPlotName, msePlotName=msePlotName,
-                          outputTextName=outputTextName, numSensors=50, addToOriginal=True, exhaustive=False)
-        for i in range(0, 5, 2):
-            rSeed = i
-            random.seed(rSeed)
-            np.random.seed(rSeed)
-            startTime = time.time()
-            pathPlotName = f"Experiments/numSensorsTests40k/EGMI/60s/map{rSeed}path{j+1}"
-            msePlotName = f"Experiments/numSensorsTests40k/EGMI/60s/map{rSeed}mse{j+1}"
-            outputTextName = f"Experiments/numSensorsTests40k/EGMI/60s/map{rSeed}output{j+1}.txt"
-            epsilonGreedy(numLoops=200, generate=True, startTime=startTime, energyWeight=0, savePlots=True,
-                          energyBudget=40000, pathPlotName=pathPlotName, msePlotName=msePlotName,
-                          outputTextName=outputTextName, numSensors=60, addToOriginal=True, exhaustive=False)
-        for i in range(0, 5, 2):
-            rSeed = i
-            random.seed(rSeed)
-            np.random.seed(rSeed)
-            startTime = time.time()
-            pathPlotName = f"Experiments/numSensorsTests40k/EGMI/70s/map{rSeed}path{j+1}"
-            msePlotName = f"Experiments/numSensorsTests40k/EGMI/70s/map{rSeed}mse{j+1}"
-            outputTextName = f"Experiments/numSensorsTests40k/EGMI/70s/map{rSeed}output{j+1}.txt"
-            epsilonGreedy(numLoops=200, generate=True, startTime=startTime, energyWeight=0, savePlots=True,
-                          energyBudget=40000, pathPlotName=pathPlotName, msePlotName=msePlotName,
-                          outputTextName=outputTextName, numSensors=70, addToOriginal=True, exhaustive=False)
-
 # rSeed = 1
 # random.seed(rSeed)
 # np.random.seed(rSeed)
@@ -895,8 +765,70 @@ def numSensorsTests40k():
         df = normalizeData(df)
         df = df[np.random.permutation(df.columns)]
         for j in range(1, 2):
-            print(f'JJJJJJJ {j}')
-            croppedDF = df.iloc[:, :20]
+            # croppedDF = df.iloc[:, :20]
+            # croppedSensorsGDF = sensorsGDF[sensorsGDF['Location'].isin(croppedDF.columns)]
+            # fig1, ax1 = plt.subplots(figsize=(8, 8))
+            # ax1.set_xlim(-100, 1300 + 100)
+            # ax1.set_ylim(-100, 800 + 100)
+            # HP_gdf, sensorNames = getHoverPoints(croppedSensorsGDF, commRadius=70, ax=ax1, height=15)
+            # SHP_gdf = gpd.GeoDataFrame()
+            # SHP_gdf['geometry'] = None
+            # SHP_gdf = SHP_gdf.set_geometry('geometry')
+            # UHP_gdf = HP_gdf.copy()
+            # SHP_gdf.crs = 'EPSG:3857'  # pseudo-mercator
+            # UHP_gdf.crs = 'EPSG:3857'
+            # startTime = time.time()
+            # pathPlotName = f"Experiments/numSensorsTests40k2/EG3/20s/map{rSeed}path{j + 1}"
+            # msePlotName = f"Experiments/numSensorsTests40k2/EG3/20s/map{rSeed}mse{j + 1}"
+            # outputTextName = f"Experiments/numSensorsTests40k2/EG3/20s/map{rSeed}output{j + 1}.txt"
+            # epsilonGreedy(fig1, ax1, HP_gdf, UHP_gdf, SHP_gdf, sensorNames, croppedDF,
+            #               numLoops=200, generate=True, startTime=startTime, energyWeight=0, savePlots=True,
+            #               energyBudget=40000, pathPlotName=pathPlotName, msePlotName=msePlotName,
+            #               outputTextName=outputTextName, numSensors=20, addToOriginal=True)
+            #
+            # croppedDF = df.iloc[:, :30]
+            # croppedSensorsGDF = sensorsGDF[sensorsGDF['Location'].isin(croppedDF.columns)]
+            # fig1, ax1 = plt.subplots(figsize=(8, 8))
+            # ax1.set_xlim(-100, 1300 + 100)
+            # ax1.set_ylim(-100, 800 + 100)
+            # HP_gdf, sensorNames = getHoverPoints(croppedSensorsGDF, commRadius=70, ax=ax1, height=15)
+            # SHP_gdf = gpd.GeoDataFrame()
+            # SHP_gdf['geometry'] = None
+            # SHP_gdf = SHP_gdf.set_geometry('geometry')
+            # UHP_gdf = HP_gdf.copy()
+            # SHP_gdf.crs = 'EPSG:3857'  # pseudo-mercator
+            # UHP_gdf.crs = 'EPSG:3857'
+            # startTime = time.time()
+            # pathPlotName = f"Experiments/numSensorsTests40k2/EG3/30s/map{rSeed}path{j + 1}"
+            # msePlotName = f"Experiments/numSensorsTests40k2/EG3/30s/map{rSeed}mse{j + 1}"
+            # outputTextName = f"Experiments/numSensorsTests40k2/EG3/30s/map{rSeed}output{j + 1}.txt"
+            # epsilonGreedy(fig1, ax1, HP_gdf, UHP_gdf, SHP_gdf, sensorNames, croppedDF,
+            #               numLoops=200, generate=True, startTime=startTime, energyWeight=0, savePlots=True,
+            #               energyBudget=40000, pathPlotName=pathPlotName, msePlotName=msePlotName,
+            #               outputTextName=outputTextName, numSensors=30, addToOriginal=True)
+            #
+            # croppedDF = df.iloc[:, :40]
+            # croppedSensorsGDF = sensorsGDF[sensorsGDF['Location'].isin(croppedDF.columns)]
+            # fig1, ax1 = plt.subplots(figsize=(8, 8))
+            # ax1.set_xlim(-100, 1300 + 100)
+            # ax1.set_ylim(-100, 800 + 100)
+            # HP_gdf, sensorNames = getHoverPoints(croppedSensorsGDF, commRadius=70, ax=ax1, height=15)
+            # SHP_gdf = gpd.GeoDataFrame()
+            # SHP_gdf['geometry'] = None
+            # SHP_gdf = SHP_gdf.set_geometry('geometry')
+            # UHP_gdf = HP_gdf.copy()
+            # SHP_gdf.crs = 'EPSG:3857'  # pseudo-mercator
+            # UHP_gdf.crs = 'EPSG:3857'
+            # startTime = time.time()
+            # pathPlotName = f"Experiments/numSensorsTests40k2/EG3/40s/map{rSeed}path{j + 1}"
+            # msePlotName = f"Experiments/numSensorsTests40k2/EG3/40s/map{rSeed}mse{j + 1}"
+            # outputTextName = f"Experiments/numSensorsTests40k2/EG3/40s/map{rSeed}output{j + 1}.txt"
+            # epsilonGreedy(fig1, ax1, HP_gdf, UHP_gdf, SHP_gdf, sensorNames, croppedDF,
+            #               numLoops=200, generate=True, startTime=startTime, energyWeight=0, savePlots=True,
+            #               energyBudget=40000, pathPlotName=pathPlotName, msePlotName=msePlotName,
+            #               outputTextName=outputTextName, numSensors=40, addToOriginal=True)
+
+            croppedDF = df.iloc[:, :70]
             croppedSensorsGDF = sensorsGDF[sensorsGDF['Location'].isin(croppedDF.columns)]
             fig1, ax1 = plt.subplots(figsize=(8, 8))
             ax1.set_xlim(-100, 1300 + 100)
@@ -909,78 +841,15 @@ def numSensorsTests40k():
             SHP_gdf.crs = 'EPSG:3857'  # pseudo-mercator
             UHP_gdf.crs = 'EPSG:3857'
             startTime = time.time()
-            pathPlotName = f"Experiments/numSensorsTests40k2/EG3/20s/map{rSeed}path{j + 1}"
-            msePlotName = f"Experiments/numSensorsTests40k2/EG3/20s/map{rSeed}mse{j + 1}"
-            outputTextName = f"Experiments/numSensorsTests40k2/EG3/20s/map{rSeed}output{j + 1}.txt"
+            pathPlotName = f"Experiments/EG/70s/map{rSeed}path{j + 1}"
+            msePlotName = f"Experiments/EG/70s/map{rSeed}mse{j + 1}"
+            outputTextName = f"Experiments/EG/70s/map{rSeed}output{j + 1}.txt"
             epsilonGreedy(fig1, ax1, HP_gdf, UHP_gdf, SHP_gdf, sensorNames, croppedDF,
                           numLoops=200, generate=True, startTime=startTime, energyWeight=0, savePlots=True,
                           energyBudget=40000, pathPlotName=pathPlotName, msePlotName=msePlotName,
-                          outputTextName=outputTextName, numSensors=20, addToOriginal=True)
+                          outputTextName=outputTextName, numSensors=70, addToOriginal=True)
 
-            croppedDF = df.iloc[:, :30]
-            croppedSensorsGDF = sensorsGDF[sensorsGDF['Location'].isin(croppedDF.columns)]
-            fig1, ax1 = plt.subplots(figsize=(8, 8))
-            ax1.set_xlim(-100, 1300 + 100)
-            ax1.set_ylim(-100, 800 + 100)
-            HP_gdf, sensorNames = getHoverPoints(croppedSensorsGDF, commRadius=70, ax=ax1, height=15)
-            SHP_gdf = gpd.GeoDataFrame()
-            SHP_gdf['geometry'] = None
-            SHP_gdf = SHP_gdf.set_geometry('geometry')
-            UHP_gdf = HP_gdf.copy()
-            SHP_gdf.crs = 'EPSG:3857'  # pseudo-mercator
-            UHP_gdf.crs = 'EPSG:3857'
-            startTime = time.time()
-            pathPlotName = f"Experiments/numSensorsTests40k2/EG3/30s/map{rSeed}path{j + 1}"
-            msePlotName = f"Experiments/numSensorsTests40k2/EG3/30s/map{rSeed}mse{j + 1}"
-            outputTextName = f"Experiments/numSensorsTests40k2/EG3/30s/map{rSeed}output{j + 1}.txt"
-            epsilonGreedy(fig1, ax1, HP_gdf, UHP_gdf, SHP_gdf, sensorNames, croppedDF,
-                          numLoops=200, generate=True, startTime=startTime, energyWeight=0, savePlots=True,
-                          energyBudget=40000, pathPlotName=pathPlotName, msePlotName=msePlotName,
-                          outputTextName=outputTextName, numSensors=30, addToOriginal=True)
-
-            croppedDF = df.iloc[:, :40]
-            croppedSensorsGDF = sensorsGDF[sensorsGDF['Location'].isin(croppedDF.columns)]
-            fig1, ax1 = plt.subplots(figsize=(8, 8))
-            ax1.set_xlim(-100, 1300 + 100)
-            ax1.set_ylim(-100, 800 + 100)
-            HP_gdf, sensorNames = getHoverPoints(croppedSensorsGDF, commRadius=70, ax=ax1, height=15)
-            SHP_gdf = gpd.GeoDataFrame()
-            SHP_gdf['geometry'] = None
-            SHP_gdf = SHP_gdf.set_geometry('geometry')
-            UHP_gdf = HP_gdf.copy()
-            SHP_gdf.crs = 'EPSG:3857'  # pseudo-mercator
-            UHP_gdf.crs = 'EPSG:3857'
-            startTime = time.time()
-            pathPlotName = f"Experiments/numSensorsTests40k2/EG3/40s/map{rSeed}path{j + 1}"
-            msePlotName = f"Experiments/numSensorsTests40k2/EG3/40s/map{rSeed}mse{j + 1}"
-            outputTextName = f"Experiments/numSensorsTests40k2/EG3/40s/map{rSeed}output{j + 1}.txt"
-            epsilonGreedy(fig1, ax1, HP_gdf, UHP_gdf, SHP_gdf, sensorNames, croppedDF,
-                          numLoops=200, generate=True, startTime=startTime, energyWeight=0, savePlots=True,
-                          energyBudget=40000, pathPlotName=pathPlotName, msePlotName=msePlotName,
-                          outputTextName=outputTextName, numSensors=40, addToOriginal=True)
-
-            croppedDF = df.iloc[:, :50]
-            croppedSensorsGDF = sensorsGDF[sensorsGDF['Location'].isin(croppedDF.columns)]
-            fig1, ax1 = plt.subplots(figsize=(8, 8))
-            ax1.set_xlim(-100, 1300 + 100)
-            ax1.set_ylim(-100, 800 + 100)
-            HP_gdf, sensorNames = getHoverPoints(croppedSensorsGDF, commRadius=70, ax=ax1, height=15)
-            SHP_gdf = gpd.GeoDataFrame()
-            SHP_gdf['geometry'] = None
-            SHP_gdf = SHP_gdf.set_geometry('geometry')
-            UHP_gdf = HP_gdf.copy()
-            SHP_gdf.crs = 'EPSG:3857'  # pseudo-mercator
-            UHP_gdf.crs = 'EPSG:3857'
-            startTime = time.time()
-            pathPlotName = f"Experiments/numSensorsTests40k2/EG3/50s/map{rSeed}path{j + 1}"
-            msePlotName = f"Experiments/numSensorsTests40k2/EG3/50s/map{rSeed}mse{j + 1}"
-            outputTextName = f"Experiments/numSensorsTests40k2/EG3/50s/map{rSeed}output{j + 1}.txt"
-            epsilonGreedy(fig1, ax1, HP_gdf, UHP_gdf, SHP_gdf, sensorNames, croppedDF,
-                          numLoops=200, generate=True, startTime=startTime, energyWeight=0, savePlots=True,
-                          energyBudget=40000, pathPlotName=pathPlotName, msePlotName=msePlotName,
-                          outputTextName=outputTextName, numSensors=50, addToOriginal=True)
-
-
+numSensorsTests40k()
 # 15 bins
 def IGNumSensorsTests40k_3():
     for j in range(2):
@@ -1540,4 +1409,4 @@ def synthBudgetTests2():
                   energyBudget=55000, pathPlotName=pathPlotName, msePlotName=msePlotName,
                   outputTextName=outputTextName, numSensors=40, addToOriginal=True, exhaustive=False)
 
-synthBudgetTests2()
+# synthBudgetTests2()
