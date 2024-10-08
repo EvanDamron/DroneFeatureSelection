@@ -1,5 +1,5 @@
 # Drone Feature Selection
-There are sensors spread throughout a field in a rural off-the-grid environment. To collect data from these sensors you must travel to them, so a drone is used. The number of sensors the drone can visit is limited by the battery of the drone. Machine Learning models can be used to predict the values of the unvisited sensors from the values of the ones visited by the drone (model-based column-wise imputation). Our goal is to maximize the accuracy of these predictions by selecting the best subset of features for the drone to travel to without exceeding the energy budget of the drone's battery. 
+There are sensors spread throughout a field in a rural off-the-grid environment. To collect data from these sensors you must travel to them, so a drone is used. The number of sensors the drone can visit is limited by the battery of the drone. Machine Learning models can be used to predict the values of the unvisited sensors from the values of the ones visited by the drone. Our goal is to maximize the accuracy of these predictions by selecting the best subset of features for the drone to travel to without exceeding the energy budget of the drone's battery. 
 
 mapping.py: Processes the shp file to plot all of the sensor locations, their communication radius and hover points. Hover points are the midpoints of all overlapping sections of communication radius'. For now, if a hover point is in a section shared by two communication radius', then traveling there means you have to recieve from both sensors, and the same is true for sections shared by three sensors. Also contains the code to plot the path of the drone.
 
@@ -11,3 +11,5 @@ epsilonGreedy.py: Contains the main epsilon-greedy algorithm to add/remove rando
 
 RSEO.py: Contains implementation of Reward Storage first Energy then Optimization proposed in "Optimal and Heuristic Algorithms for Data Collection by Using an Energy-and Storage-Constrained Drone", with the storage constraint dropped and minor alterations necessary to apply it to our problem. Used as a comparison approach.
 
+## Example Output
+![path figure](https://github.com/user-attachments/assets/64162d1d-3d16-4bdd-94ef-8050b04afd65)
