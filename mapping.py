@@ -79,6 +79,7 @@ def getHoverPoints(sensors, commRadius, height, ax):
 
     overlapsOf3['geometry_str'] = overlapsOf3['geometry'].astype(str)
     overlapsOf3 = overlapsOf3.drop_duplicates(subset='geometry_str').reset_index(drop=True)
+
     # indexToLocationSet = {}
     # for index, row in overlapsOf3.iterrows():
     #     locationValues = set(row[['Location_1_1', 'Location_2_1', 'Location_1_2', 'Location_2_2']])
@@ -87,6 +88,7 @@ def getHoverPoints(sensors, commRadius, height, ax):
     hoverPoints['geometry_str'] = hoverPoints['geometry'].astype(str)
     hoverPoints = hoverPoints.drop_duplicates(subset='geometry_str').reset_index(drop=True)
     hoverPoints = hoverPoints.drop(columns=['geometry_str'])
+
     # create dictionary to correspond hover points to sensors
     sensorNames = {}
     for hoverPoint in hoverPoints['geometry']:
@@ -258,8 +260,86 @@ def plotPath(ax, hoverPoints):
     ax.plot([coordinates[len(coordinates) - 1][0], 0], [coordinates[len(coordinates) - 1][1], 0], 'r-')  # return path
 
 
-# Only keeps the smallest amount of hoverpoints needed to cover all the sensors, used in RSEO
 def minSetCover(sensorNames, hoverPoints):
+    """
+    Reduces the number of hovering points to the minimum needed to cover all sensors.
+
+    This function aims to minimize the number of hovering points required to cover all given sensors.
+    It achieves this by formulating the problem as a set cover problem and solving it using a heuristic
+    approach provided by the SetCoverPy library. The steps involved are as follows:
+
+    Parameters:
+    - sensorNames: A dictionary where keys are hovering points and values are lists of sensor names
+                   that each hovering point can cover.
+    - hoverPoints: A DataFrame containing the geometrical data of the hovering points.
+
+    Returns:
+    - filteredSensorNames: A dictionary containing the reduced set of hovering points and their associated sensors.
+    - filteredHoverPoints: A DataFrame containing the geometrical data of the reduced set of hovering points.
+
+    Note:
+    - This function is particularly useful in applications where it is necessary to optimize resource usage,
+      such as reducing the number of UAV hovering points required for sensor data collection in a field.
+
+    """
+
+    # Preserve the original random states
+    original_random_state = random.getstate()
+    orig_np_state = np.random.get_state()
+
+    # Seed the random and numpy modules for reproducibility
+    random.seed()
+    np.random.seed()
+
+    # Combine all sensors into a sorted list of unique sensors
+    allSensors = sorted(set(sensor for sensors in sensorNames.values() for sensor in sensors))
+
+    # Create a mapping of sensors to their indices in the matrix
+    sensorIndexes = {sensor: i for i, sensor in enumerate(allSensors)}
+
+    numRows = len(allSensors)
+    numCols = len(sensorNames)
+
+    # Remove duplicate hover points based on geometry if the count doesn't match
+    if numCols != len(hoverPoints):
+        hoverPoints['geometry_str'] = hoverPoints['geometry'].astype(str)
+        hoverPoints = hoverPoints.drop_duplicates(subset='geometry_str')
+        hoverPoints = hoverPoints.drop(columns='geometry_str')
+
+    print(f'Length of sensorNames: {numCols}, Length of hoverPoints: {len(hoverPoints)}')
+
+    # Construct the binary coverage matrix
+    aMatrix = np.zeros((numRows, numCols), dtype=int)
+    for j, (point, sensors) in enumerate(sensorNames.items()):
+        for sensor in sensors:
+            i = sensorIndexes[sensor]
+            aMatrix[i, j] = True
+
+    # Calculate the cost for each hovering point based on the number of sensors it covers
+    sums = np.sum(aMatrix, axis=0)
+    cost = [value - ((value - 1) * .1) for value in sums]
+
+    # Solve the set cover problem using SetCoverPy
+    solver = setcover.SetCover(amatrix=aMatrix, cost=cost)
+    result = solver.SolveSCP()
+
+    # Extract the decision list indicating selected hover points
+    decisionList = solver.s
+
+    # Filter hoverPoints and sensorNames based on the selected hover points
+    filteredHoverPoints = hoverPoints[decisionList]
+    filteredHoverPoints.reset_index(drop=True, inplace=True)
+    validPoints = set(filteredHoverPoints['geometry'])
+    filteredSensorNames = {point: value for point, value in sensorNames.items() if point in validPoints}
+
+    # Restore the original random states
+    random.setstate(original_random_state)
+    np.random.set_state(orig_np_state)
+
+    return filteredSensorNames, filteredHoverPoints
+
+
+def smartSetCover(sensorNames, hoverPoints):
     original_random_state = random.getstate()
     orig_np_state = np.random.get_state()
     random.seed()
@@ -270,6 +350,7 @@ def minSetCover(sensorNames, hoverPoints):
     numRows = len(allSensors)
     numCols = len(sensorNames)
     if numCols != len(hoverPoints):
+        print(f'length of sensorNames: {numCols}, length of hoverPoints: {len(hoverPoints)}')
         hoverPoints['geometry_str'] = hoverPoints['geometry'].astype(str)
         hoverPoints = hoverPoints.drop_duplicates(subset='geometry_str')
         hoverPoints = hoverPoints.drop(columns='geometry_str')
@@ -301,9 +382,80 @@ def getSensorNames(points, sensorNames):
     return list(corrSensorsSet)
 
 
-def testMapping():
-    # random.seed(42)
-    # np.random.seed(42)
+# def testMapping():
+#     # random.seed(42)
+#     # np.random.seed(42)
+#     pd.set_option('display.max_rows', 5)
+#     pd.set_option('display.max_columns', 100)
+#     shpFilePath = 'CAF_Sensor_Dataset_2/CAF_sensors.shp'
+#     communicationRadius = 70
+#     height = 15
+#     dataFolder = 'CAF_Sensor_Dataset_2/caf_sensors/Hourly'
+#     df = processData(dataFolder)
+#     np.random.seed(1)
+#     random.seed(1)
+#     sensorsGDF, df = addSensorsUniformRandom(height, communicationRadius, df, numSensors=80)
+#     df = df[np.random.permutation(df.columns)]
+#     df = df.iloc[:, :20]
+#     sensorsGDF = sensorsGDF[sensorsGDF['Location'].isin(df.columns)]
+#     hoverPoints, sensorNames = getHoverPoints(sensorsGDF, commRadius=70, ax=ax, height=15)
+#     hoverPoints.plot(ax=ax, color='red', markersize=25)
+#     plt.show()
+#     print(df)
+#     synthDF = normalizeData(df)
+#     print(synthDF)
+#     exit()
+#     # fig, ax, hoverPoints, sensorNames, df = generateSensorsUniformRandom(height, communicationRadius, df,
+#     #                                                                      numSensors=50)
+#     features = df.columns
+#     features = features[:30]
+#     # mi = getMutualInformation(features, df)
+#     # fig, ax, hoverPoints, sensorNames, df = addSensorsUniformRandom(height, communicationRadius, df,
+#     #                                                                      numSensors=50)
+#
+#     # df = getSyntheticDF_two(df, numSensors=60)
+#     # fig, ax, hoverPoints, sensorNames, df = generateSensorsUniformRandom(height, communicationRadius, df,
+#     #                                                                      numSensors=50)
+#
+#     # fig, ax, hoverPoints, sensorNames = processSHP(shpFilePath, df, height, communicationRadius)
+#
+#     hoverPoints.plot(ax=ax, color='yellow', markersize=25)
+#     print(f'there are {len(hoverPoints)} hover points')
+#     print(df)
+#     for key, value in sensorNames.items():
+#         ax.text(key.x, key.y, str(len(value)), fontsize=10, ha='center', va='bottom')
+#     duplicates = set(set())
+#     for names in sensorNames.values():
+#         if set(names) in duplicates:
+#             print('theres a duplicate in sensor names')
+#             exit()
+#         else:
+#             duplicates.update(set(names))
+#     print('no dup sensors')
+#
+#     # plt.show()
+#     exit()
+#
+#
+#
+#
+#     rSeed = 3
+#     random.seed(rSeed)
+#     np.random.seed(rSeed)
+#     # pathPlotName = f"Experiment Maps/Sensors37Seed{rSeed}"
+#     fig, ax, hoverPoints, sensorNames, df = generateSensorsUniformRandom(height, communicationRadius, df,
+#                                                         numSensors=50)
+#     print(df)
+#     hoverPoints.plot(ax=ax, color='yellow', markersize=25)
+#     count = 0
+#
+#     print(f'there are {len(hoverPoints)} hover points')
+#     plt.show()
+
+
+if __name__ == '__main__':
+    random.seed(42)
+    np.random.seed(42)
     pd.set_option('display.max_rows', 5)
     pd.set_option('display.max_columns', 100)
     shpFilePath = 'CAF_Sensor_Dataset_2/CAF_sensors.shp'
@@ -311,65 +463,7 @@ def testMapping():
     height = 15
     dataFolder = 'CAF_Sensor_Dataset_2/caf_sensors/Hourly'
     df = processData(dataFolder)
-    np.random.seed(1)
-    random.seed(1)
-    fig, ax, sensorsGDF, df = addSensorsUniformRandom(height, communicationRadius, df, numSensors=80)
-    df = df[np.random.permutation(df.columns)]
-    df = df.iloc[:, :20]
-    sensorsGDF = sensorsGDF[sensorsGDF['Location'].isin(df.columns)]
-    hoverPoints, sensorNames = getHoverPoints(sensorsGDF, commRadius=70, ax=ax, height=15)
-    hoverPoints.plot(ax=ax, color='red', markersize=25)
+    fig, ax, hoverPoints, sensorNames = processSHP(shpFilePath, df, height, communicationRadius)
+    filteredSensorNames, filteredHoverPoints = minSetCover(sensorNames, hoverPoints)
+    filteredHoverPoints.plot(ax=ax, color='red', markersize=25)
     plt.show()
-    print(df)
-    synthDF = normalizeData(df)
-    print(synthDF)
-    exit()
-    # fig, ax, hoverPoints, sensorNames, df = generateSensorsUniformRandom(height, communicationRadius, df,
-    #                                                                      numSensors=50)
-    features = df.columns
-    features = features[:30]
-    # mi = getMutualInformation(features, df)
-    # fig, ax, hoverPoints, sensorNames, df = addSensorsUniformRandom(height, communicationRadius, df,
-    #                                                                      numSensors=50)
-
-    # df = getSyntheticDF_two(df, numSensors=60)
-    # fig, ax, hoverPoints, sensorNames, df = generateSensorsUniformRandom(height, communicationRadius, df,
-    #                                                                      numSensors=50)
-
-    # fig, ax, hoverPoints, sensorNames = processSHP(shpFilePath, df, height, communicationRadius)
-
-    hoverPoints.plot(ax=ax, color='yellow', markersize=25)
-    print(f'there are {len(hoverPoints)} hover points')
-    print(df)
-    for key, value in sensorNames.items():
-        ax.text(key.x, key.y, str(len(value)), fontsize=10, ha='center', va='bottom')
-    duplicates = set(set())
-    for names in sensorNames.values():
-        if set(names) in duplicates:
-            print('theres a duplicate in sensor names')
-            exit()
-        else:
-            duplicates.update(set(names))
-    print('no dup sensors')
-
-    # plt.show()
-    exit()
-
-
-
-
-    rSeed = 3
-    random.seed(rSeed)
-    np.random.seed(rSeed)
-    # pathPlotName = f"Experiment Maps/Sensors37Seed{rSeed}"
-    fig, ax, hoverPoints, sensorNames, df = generateSensorsUniformRandom(height, communicationRadius, df,
-                                                        numSensors=50)
-    print(df)
-    hoverPoints.plot(ax=ax, color='yellow', markersize=25)
-    count = 0
-
-    print(f'there are {len(hoverPoints)} hover points')
-    plt.show()
-
-
-# testMapping()

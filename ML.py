@@ -15,8 +15,9 @@ from collections import defaultdict
 from sklearn.feature_selection import mutual_info_regression
 from sklearn.mixture import GaussianMixture
 
-#iterate through folder, make new data frame indexed by date and time, columns are sensors, and value is VW_30
-#from january-april 2015
+
+# iterate through folder, make new data frame indexed by date and time, columns are sensors, and value is VW_30
+# from january-april 2015
 def processData(folder_path):
     # Create an empty DataFrame
     df = pd.DataFrame()
@@ -43,7 +44,7 @@ def processData(folder_path):
     start_date = '2015-01-01'
     end_date = '2015-04-30'
     filtered_df = pivoted_df.loc[(pivoted_df.index >= start_date) & (pivoted_df.index <= end_date)]
-    #remove columns that are >95% NaN
+    # remove columns that are >95% NaN
     nan_percentage = filtered_df.isna().sum() / len(filtered_df) * 100
     threshold = 95
     columns_to_drop = nan_percentage[nan_percentage > threshold].index
@@ -51,16 +52,16 @@ def processData(folder_path):
 
     # Remove rows with at least one NaN value
     main_df = main_df.dropna()
-    #main_df.to_csv('mainDataFrame.txt') save data
+    # main_df.to_csv('mainDataFrame.txt') save data
     return main_df
 
 
-#find the mean squared error of Gradient Boosting, Linear Regression, Random Forest, and Support Vector
+# find the mean squared error of Gradient Boosting, Linear Regression, Random Forest, and Support Vector
 def testModels(dataFrame):
-    #split sensors into 5 groups
+    # split sensors into 5 groups
     sensors = dataFrame.columns.tolist()
     numSensors = len(sensors)
-    numGroups = 5 #also the number of folds
+    numGroups = 5  # also the number of folds
     kf = KFold(n_splits=numGroups)
     groups = []
 
@@ -77,7 +78,7 @@ def testModels(dataFrame):
     modelMSEValues = []
     for model in models:
         groupMSEValues = []
-        #Every group is the target once, and the others are the features
+        # Every group is the target once, and the others are the features
         for group in groups:
             targetSensors = group
             featureSensors = [sensor for sensor in sensors if sensor not in targetSensors]
@@ -93,7 +94,7 @@ def testModels(dataFrame):
             ])
             pipeline.fit(x_train, y_train)
             predictions = pipeline.predict(x_test)
-            #Calculate mean squared error of one model with one particular group as target, and one particular fold as testing data
+            # Calculate mean squared error of one model with one particular group as target, and one particular fold as testing data
             groupMSE = mean_squared_error(y_test, predictions)
             groupMSEValues.append(groupMSE)
         avgModelMSE = np.mean(groupMSEValues)
@@ -103,14 +104,16 @@ def testModels(dataFrame):
     print('Average MSE of Random Forest Regressor: ', modelMSEValues[2])
     print('Average MSE of Support Vector Regressor: ', modelMSEValues[3])
 
+
 def selectModel():
     dataFolder = 'CAF_Sensor_Dataset_2/caf_sensors/Hourly'
     df = processData(dataFolder)
     testModels(df)
 
+
 # selectModel()
-#using gradient boosting regressor, get mse of given features, with nonselected features as the target
-def getMSE(selectedSensors, df):
+# using gradient boosting regressor, get mse of given features, with nonselected features as the target
+def getMSE(selectedSensors, df, seed=42):
     selectedSensors.sort()
     sensors = df.columns.tolist()
     featureSensors = [sensor for sensor in selectedSensors if sensor in sensors]
@@ -125,7 +128,7 @@ def getMSE(selectedSensors, df):
     pipeline = Pipeline([
         ('scaler', StandardScaler()),
         ('regressor', TransformedTargetRegressor(
-            regressor=MultiOutputRegressor(GradientBoostingRegressor(random_state=42)),
+            regressor=MultiOutputRegressor(GradientBoostingRegressor(random_state=seed)),
             transformer=StandardScaler()
         ))
     ])
@@ -133,7 +136,7 @@ def getMSE(selectedSensors, df):
         pipeline = Pipeline([
             ('scaler', StandardScaler()),
             ('regressor', TransformedTargetRegressor(
-                regressor=GradientBoostingRegressor(random_state=42),
+                regressor=GradientBoostingRegressor(random_state=seed),
                 transformer=StandardScaler()
             ))
         ])
@@ -143,16 +146,18 @@ def getMSE(selectedSensors, df):
     mse = mean_squared_error(y_test, predictions)
     return mse
 
+
 def discretizeData(df, numBins=10):
     dfCopy = df.copy()
     # dfCopy = dfCopy.iloc[:1000]
     minReading = dfCopy.values.min()
     maxReading = dfCopy.values.max()
-    binEdges = np.linspace(minReading, maxReading, numBins+1)
+    binEdges = np.linspace(minReading, maxReading, numBins + 1)
     discretizedDF = pd.DataFrame()
     for column in dfCopy.columns:
         discretizedDF[column] = pd.cut(dfCopy[column], bins=binEdges, labels=range(1, numBins + 1), include_lowest=True)
     return discretizedDF
+
 
 def calculateEntropy(features, df):
     data = df[features]
@@ -164,6 +169,103 @@ def calculateEntropy(features, df):
     return entropy
 
 
+# def getInformationGain(selectedSensors, df):
+#     sensors = df.columns.tolist()
+#     featureSensors = [sensor for sensor in selectedSensors if sensor in sensors]
+#     if len(featureSensors) == 0:
+#         return float('-inf')
+#     targetSensors = [sensor for sensor in sensors if sensor not in featureSensors]
+#     if len(targetSensors) == 0:
+#         return float('inf')
+#     dfCopy = df.copy()
+#     dfCopy['featuresCompound'] = dfCopy[featureSensors].apply(tuple, axis=1)
+#     dfCopy['targetsCompound'] = dfCopy[targetSensors].apply(tuple, axis=1)
+#
+#     def entropy(data):
+#         uniqueTuples, counts = np.unique(data, return_counts=True)
+#         probabilities = counts / len(data)
+#         return -np.sum(probabilities * np.log2(probabilities))
+#
+#     targetEntropy = entropy(dfCopy['targetsCompound'])
+#
+#     # calculate conditional entropy
+#     jointProb = dfCopy.groupby(['featuresCompound', 'targetsCompound']).size() / len(dfCopy)
+#     featuresProb = dfCopy.groupby('featuresCompound').size() / len(dfCopy)
+#     # conditionalEntropy = sum(entropy(groaAZup['targetsCompound']) * len(group) / len(dfCopy) for _, group in df_grouped)
+#     conditionalEntropy = -sum(jointProb[X, Y] * np.log2(jointProb[X, Y] / featuresProb[X]) for X, Y in jointProb.index)
+#
+#     infoGain = targetEntropy - conditionalEntropy
+#     return infoGain
+# def getInformationGain(selectedSensors, df):
+#     sensors = df.columns.tolist()
+#     featureSensors = [sensor for sensor in selectedSensors if sensor in sensors]
+#     targetSensors = [sensor for sensor in sensors if sensor not in featureSensors]
+#
+#     if not featureSensors or not targetSensors:
+#         return float('-inf')
+#
+#     def entropy(data):
+#         _, counts = np.unique(data, return_counts=True)
+#         probabilities = counts / len(data)
+#         return -np.sum(probabilities * np.log2(probabilities))
+#
+#     total_infoGain = 0
+#
+#     for feature_sensor in featureSensors:
+#         for target_sensor in targetSensors:
+#             targetEntropy = entropy(df[target_sensor])
+#
+#             # Creating a joint dataframe to calculate conditional entropy
+#             joint_df = pd.concat([df[feature_sensor], df[target_sensor]], axis=1)
+#             joint_df.columns = ['Feature', 'Target']
+#
+#             # Conditional entropy: entropy of target given the feature
+#             grouped = joint_df.groupby('Feature')
+#             conditionalEntropy = sum(entropy(group['Target']) * len(group) / len(joint_df) for _, group in grouped)
+#
+#             infoGain = targetEntropy - conditionalEntropy
+#             total_infoGain += infoGain
+#
+#     average_infoGain = total_infoGain / (len(featureSensors) * len(targetSensors))
+#     return average_infoGain
+
+# def getInformationGain(selectedSensors, df):
+#     sensors = df.columns.tolist()
+#     featureSensors = [sensor for sensor in selectedSensors if sensor in sensors]
+#     if len(featureSensors) == 0:
+#         return float('-inf')
+#     targetSensors = [sensor for sensor in sensors if sensor not in featureSensors]
+#     if len(targetSensors) == 0:
+#         return float('inf')
+#     dfCopy = df.copy()
+#     # dfCopy['featuresCompound'] = dfCopy[featureSensors].apply(tuple, axis=1)
+#     # dfCopy['targetsCompound'] = dfCopy[targetSensors].apply(tuple, axis=1)
+#     totalMI = 0
+#     for featureSensor in featureSensors:
+#         totalFeatureMI = 0
+#         for targetSensor in targetSensors:
+#
+#             U = np.array(dfCopy[featureSensor])
+#             V = np.array(dfCopy[targetSensor])
+#             jointProb = {}
+#             for u in set(U):
+#                 for v in set(V):
+#                     jointProb[(u, v)] = np.mean(np.logical_and(U == u, V == v))
+#
+#             uProb = {}
+#             for u in set(U):
+#                 uProb[u] = np.mean(np.mean(U == u))
+#
+#             vProb = {}
+#             for v in set(V):
+#                 vProb[v] = np.mean(V == v)
+#
+#             for u, v in jointProb:
+#                 if jointProb[(u, v)] > 0:
+#                     totalFeatureMI += jointProb[(u, v)] * np.log2(jointProb[(u, v)] / (uProb[u] * vProb[v]))
+#         averageFeatureMI = totalFeatureMI / (len(featureSensors) * len(targetSensors))
+#         totalMI += averageFeatureMI
+#     return totalMI
 def getInformationGain(selectedSensors, df):
     sensors = df.columns.tolist()
     featureSensors = [sensor for sensor in selectedSensors if sensor in sensors]
@@ -192,12 +294,14 @@ def getInformationGain(selectedSensors, df):
     for joint, prob in joint_counts.items():
         marginal_targets[joint[1]] += prob
 
-    # Compute mutual information
-    MI = 0
+    # Compute information gain
+    IG = 0
     for (f, t), joint_prob in joint_counts.items():
-        MI += joint_prob * np.log2(joint_prob / (marginal_features[f] * marginal_targets[t]))
+        IG += joint_prob * np.log2(joint_prob / (marginal_features[f] * marginal_targets[t]))
 
-    return MI
+    return IG
+
+
 def getConditionalEntropy(selectedSensors, df):
     sensors = df.columns.tolist()
     featureSensors = [sensor for sensor in selectedSensors if sensor in sensors]
@@ -211,10 +315,12 @@ def getConditionalEntropy(selectedSensors, df):
     dfCopy['targetsCompound'] = dfCopy[targetSensors].apply(tuple, axis=1)
     # Calculate the entropy of targets given features
     df_grouped = dfCopy.groupby('featuresCompound')
+
     def entropy(data):
         _, counts = np.unique(data, return_counts=True)
         probabilities = counts / len(data)
         return -np.sum(probabilities * np.log2(probabilities))
+
     # Sum over each group's contribution to conditional entropy
     conditionalEntropy = sum(entropy(group['targetsCompound']) * len(group) / len(dfCopy) for _, group in df_grouped)
     return conditionalEntropy
@@ -237,26 +343,27 @@ def calculate_permutation_importance(X, y):
     #           f" +/- {result.importances_std[i]:.3f}")
     return result
 
+
 def calculate_feature_importance(Dataset):
     train_data = Dataset
     num_var = len(Dataset.columns)
     print(f'len of dataset columns doing feature importance: {num_var}')
     # Initialize a dictionary for the importance stores of each var
-    importance_dict={}
+    importance_dict = {}
     counter = 0
     for var in np.arange(num_var):
         counter += 1
         print(f'{counter} / {num_var}')
-        #print(f"calculating for var {var}:")
+        # print(f"calculating for var {var}:")
         # Create a regression dataset - column i is the prediction, the rest columns are the features
-        Y_train=train_data.iloc[:, var]
-        X_train=train_data.drop(train_data.columns[var], axis=1)
-        result= calculate_permutation_importance(X_train, Y_train)
+        Y_train = train_data.iloc[:, var]
+        X_train = train_data.drop(train_data.columns[var], axis=1)
+        result = calculate_permutation_importance(X_train, Y_train)
         # Print the feature importances
         for i in result.importances_mean.argsort()[::-1]:
             if X_train.columns[i] not in importance_dict:
-                importance_score_list=[result.importances_mean[i]]
-                importance_dict[X_train.columns[i]]=importance_score_list
+                importance_score_list = [result.importances_mean[i]]
+                importance_dict[X_train.columns[i]] = importance_score_list
             else:
                 importance_dict[X_train.columns[i]].append(result.importances_mean[i])
     # calculate the average of the importance score and rank them in desending order
@@ -287,8 +394,8 @@ def getSyntheticDF_two(df, numSensors, numToAverage=3):
         print(f'num to generate: {numToGenerate}')
         newDF = df.copy()
         numGenerated = 0
-        for i in range(0, numToGenerate*3, numToAverage):
-            indexes = [i%originalNumSensors, (i+1)%originalNumSensors, (i+2)%originalNumSensors]
+        for i in range(0, numToGenerate * 3, numToAverage):
+            indexes = [i % originalNumSensors, (i + 1) % originalNumSensors, (i + 2) % originalNumSensors]
             subset = df.iloc[:, indexes]
             newColumnName = f"synthetic {numGenerated + 1}"
             newDF[newColumnName] = subset.mean(axis=1)
@@ -315,7 +422,6 @@ def normalizeData(df):
     synthetic_df = pd.DataFrame(syntheticArray, columns=columns)
     np.random.set_state(originalSeed)
     return synthetic_df
-
 
 
 def getSyntheticDF(df):

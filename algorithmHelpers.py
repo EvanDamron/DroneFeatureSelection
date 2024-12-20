@@ -15,8 +15,7 @@ def processFiles(height, communicationRadius, minSet, generate, addToOriginal, n
     df = processData(dataFolderPath)
     if generate:
         if addToOriginal:
-            fig, ax, hoverPoints, sensorNames, df = addSensorsUniformRandom(height, communicationRadius, df,
-                                                                            numSensors)
+            fig, ax, hoverPoints, sensorNames, df = addSensorsUniformRandom(df, numSensors)
         else:
             fig, ax, hoverPoints, sensorNames, df = generateSensorsUniformRandom(height, communicationRadius, df, numSensors)
     else:
@@ -192,7 +191,7 @@ def addBestHP(unselected, unselectedIB, selected, sensorNames, df, energyWeight,
             rewards[index] = reward
     else:
         for index, IG, newEnergy in indexIGEnergy:
-            rewards[index] = IG
+            rewards[index] = IG / (1 + newEnergy * energyWeight)
 
     if exhaustive:
         # make sure not to add a redundant point
@@ -826,7 +825,7 @@ def printResults(finalSHP, finalIteration, finalDistance, finalMSE, sensorNames)
     print(f"sensors used: {sensors} ({len(sensors)})")
     print(f"best SHP:\n{finalSHP}")
 
-def writeResults(finalSHP, finalIteration, finalDistance, finalMSE, sensorNames, outputTextName, startTime, finalMSE2):
+def writeResults(finalSHP, finalIteration, finalDistance, finalMSE, sensorNames, outputTextName, startTime, finalMSE2=""):
     endTime = time.time()
     runTime = endTime - startTime
     minutes = int(runTime // 60)
@@ -839,7 +838,7 @@ def writeResults(finalSHP, finalIteration, finalDistance, finalMSE, sensorNames,
         sensors = getSensorNames(finalSHP['geometry'], sensorNames)
         file.write(f"sensors used: {sensors} ({len(sensors)})\n")
         file.write(f"best SHP:\n{finalSHP}")
-        file.write(f"finalMSE: {finalMSE2}")
+        file.write(f"mse_std_dev: {finalMSE2}")
 
 def printTime(startTime):
     endTime = time.time()

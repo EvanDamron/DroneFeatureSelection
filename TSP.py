@@ -4,10 +4,13 @@ from python_tsp.distances import euclidean_distance_matrix
 from python_tsp.heuristics import solve_tsp_local_search
 import geopandas as gpd
 from shapely import Point
+import random
 
 
 
 def hoverPointsTSP(points, scramble=False):
+    random.seed(0)
+    np.random.seed(0)
     # print(f'points: {points}')
     if len(points) == 0:
         gdf = gpd.GeoDataFrame(geometry=[Point(x, y) for x, y in points], crs='EPSG:3857')

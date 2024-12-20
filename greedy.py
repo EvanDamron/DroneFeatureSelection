@@ -225,14 +225,14 @@ def addBestHP(unselected, unselectedIB, selected, sensorNames, df, energyWeight)
     return unselected, selected
 
 def greedy_add(processedData, savePlots=False, pathPlotName="", msePlotName="", outputTextName="",
-                  droneHeight=15, energyWeight=0.0, communicationRadius=70, energyBudget=40000, joulesPerMeter=10,
+                  droneHeight=15, energyWeight=0.1, communicationRadius=70, energyBudget=40000, joulesPerMeter=10,
                   joulesPerSecond=35, dataSize=100, transferRate=9, minSet=False, generate=False, numSensors=37,
                   addToOriginal=True, exhaustive=False):
     startTime = time.time()
     fig1, ax1, HP_gdf, UHP_gdf, SHP_gdf, sensorNames, df = processedData
     originalDF = df.copy()
-    discreteDF = originalDF.copy()
-    # discreteDF = discretizeData(originalDF, numBins=8)
+    # discreteDF = originalDF.copy()
+    discreteDF = discretizeData(originalDF, numBins=10)
     # x, y1, y2, line1, line2, ax2, ax3, fig2 = createIGMSEPlot()
     print(f"Total number of Hoverpoints: {len(HP_gdf)}")
     print(f"Total number of sensors: {len(getSensorNames(HP_gdf['geometry'], sensorNames))}")
@@ -305,14 +305,227 @@ if __name__ == '__main__':
     # gamma_values = [0]
     energy_budgets = [20000, 25000, 30000, 35000, 40000, 45000, 50000, 55000]
     # energy_budgets = [55000]
-    for energyBudget in energy_budgets:
-        processed_files = processFiles(droneHeight, communicationRadius, minSet, generate, addToOriginal, numSensors)
-        energyBudget_str = f'{energyBudget // 1000}k'
+
+    # REAL ENERGY BUDGET EXPERIMENTS
+    # for energyBudget in energy_budgets:
+    #     processed_files = processFiles(droneHeight, communicationRadius, minSet, generate, addToOriginal, numSensors)
+    #     energyBudget_str = f'{energyBudget // 1000}k'
+    #     greedy_add(processed_files, savePlots=True,
+    #                pathPlotName=f"Greedy Experiments/greedy_add_path{energyBudget_str}.png",
+    #                msePlotName=f"Greedy Experiments/greedy_add_mse{energyBudget_str}.png",
+    #                outputTextName=f"Greedy Experiments/greedy_add_output{energyBudget_str}.txt",
+    #                energyBudget=energyBudget, energyWeight=0.1)
+
+    # SYNTHETIC ENERGY BUDGET EXPERIMENTS
+    # for energyBudget in energy_budgets:
+    #     # processed_files = processFiles(droneHeight, communicationRadius, minSet, generate=True, addToOriginal=True, numSensors=40)
+    #     energyBudget_str = f'{energyBudget // 1000}k'
+    #     greedy_add(processed_files, savePlots=True,
+    #                pathPlotName=f"Greedy Experiments/Synth Energy Budget/greedy_add_path{energyBudget_str}.png",
+    #                msePlotName=f"Greedy Experiments/Synth Energy Budget/greedy_add_mse{energyBudget_str}.png",
+    #                outputTextName=f"Greedy Experiments/Synth Energy Budget/greedy_add_output{energyBudget_str}.txt",
+    #                energyBudget=energyBudget, energyWeight=0.1)
+
+    # exit()
+
+    def synthBudgetTests():
+        rSeed = 2
+        random.seed(rSeed)
+        np.random.seed(rSeed)
+        dataFolder = 'CAF_Sensor_Dataset_2/caf_sensors/Hourly'
+        df = processData(dataFolder)
+        sensorsGDF, df = addSensorsUniformRandom(df=df, numSensors=40)
+        print(f'len columns = {len(df.columns)}')
+        df = normalizeData(df)
+        df = df[np.random.permutation(df.columns)]
+        print(f'len columns = {len(df.columns)}')
+        fig1, ax1 = plt.subplots(figsize=(8, 8))
+        ax1.set_xlim(-100, 1300 + 100)
+        ax1.set_ylim(-100, 800 + 100)
+        HP_gdf, sensorNames = getHoverPoints(sensorsGDF, commRadius=70, ax=ax1, height=15)
+        SHP_gdf = gpd.GeoDataFrame()
+        SHP_gdf['geometry'] = None
+        SHP_gdf = SHP_gdf.set_geometry('geometry')
+        UHP_gdf = HP_gdf.copy()
+        SHP_gdf.crs = 'EPSG:3857'  # pseudo-mercator
+        UHP_gdf.crs = 'EPSG:3857'
+
+        fig, ax = plt.subplots(figsize=(8, 8))
+        ax.set_xlim(-100, 1300 + 100)
+        ax.set_ylim(-100, 800 + 100)
+        hoverPoints, sensorNames = getHoverPoints(sensorsGDF, commRadius=70, ax=ax, height=15)
+        processed_files = (fig, ax, HP_gdf, UHP_gdf, SHP_gdf, sensorNames, df)
         greedy_add(processed_files, savePlots=True,
-                   pathPlotName=f"Greedy Experiments/greedy_add_path{energyBudget_str}.png",
-                   msePlotName=f"Greedy Experiments/greedy_add_mse{energyBudget_str}.png",
-                   outputTextName=f"Greedy Experiments/greedy_add_output{energyBudget_str}.txt",
-                   energyBudget=energyBudget, energyWeight=0.1)
+                   pathPlotName=f"Greedy Experiments/Synth Energy Budget/greedy_add_path20k.png",
+                   msePlotName=f"Greedy Experiments/Synth Energy Budget/greedy_add_mse20k.png",
+                   outputTextName=f"Greedy Experiments/Synth Energy Budget/greedy_add_output20k.txt",
+                   energyBudget=20000, energyWeight=0.1)
+
+        fig, ax = plt.subplots(figsize=(8, 8))
+        ax.set_xlim(-100, 1300 + 100)
+        ax.set_ylim(-100, 800 + 100)
+        hoverPoints, sensorNames = getHoverPoints(sensorsGDF, commRadius=70, ax=ax, height=15)
+        processed_files = (fig, ax, HP_gdf, UHP_gdf, SHP_gdf, sensorNames, df)
+        greedy_add(processed_files, savePlots=True,
+                   pathPlotName=f"Greedy Experiments/Synth Energy Budget/greedy_add_path25k.png",
+                   msePlotName=f"Greedy Experiments/Synth Energy Budget/greedy_add_mse25k.png",
+                   outputTextName=f"Greedy Experiments/Synth Energy Budget/greedy_add_output25k.txt",
+                   energyBudget=25000, energyWeight=0.1)
+
+        fig, ax = plt.subplots(figsize=(8, 8))
+        ax.set_xlim(-100, 1300 + 100)
+        ax.set_ylim(-100, 800 + 100)
+        hoverPoints, sensorNames = getHoverPoints(sensorsGDF, commRadius=70, ax=ax, height=15)
+        processed_files = (fig, ax, HP_gdf, UHP_gdf, SHP_gdf, sensorNames, df)
+        greedy_add(processed_files, savePlots=True,
+                   pathPlotName=f"Greedy Experiments/Synth Energy Budget/greedy_add_path30k.png",
+                   msePlotName=f"Greedy Experiments/Synth Energy Budget/greedy_add_mse30k.png",
+                   outputTextName=f"Greedy Experiments/Synth Energy Budget/greedy_add_output30k.txt",
+                   energyBudget=30000, energyWeight=0.1)
+
+        fig, ax = plt.subplots(figsize=(8, 8))
+        ax.set_xlim(-100, 1300 + 100)
+        ax.set_ylim(-100, 800 + 100)
+        hoverPoints, sensorNames = getHoverPoints(sensorsGDF, commRadius=70, ax=ax, height=15)
+        processed_files = (fig, ax, HP_gdf, UHP_gdf, SHP_gdf, sensorNames, df)
+        greedy_add(processed_files, savePlots=True,
+                   pathPlotName=f"Greedy Experiments/Synth Energy Budget/greedy_add_path35k.png",
+                   msePlotName=f"Greedy Experiments/Synth Energy Budget/greedy_add_mse35k.png",
+                   outputTextName=f"Greedy Experiments/Synth Energy Budget/greedy_add_output35k.txt",
+                   energyBudget=35000, energyWeight=0.1)
+
+        fig, ax = plt.subplots(figsize=(8, 8))
+        ax.set_xlim(-100, 1300 + 100)
+        ax.set_ylim(-100, 800 + 100)
+        hoverPoints, sensorNames = getHoverPoints(sensorsGDF, commRadius=70, ax=ax, height=15)
+        processed_files = (fig, ax, HP_gdf, UHP_gdf, SHP_gdf, sensorNames, df)
+        greedy_add(processed_files, savePlots=True,
+                   pathPlotName=f"Greedy Experiments/Synth Energy Budget/greedy_add_path40k.png",
+                   msePlotName=f"Greedy Experiments/Synth Energy Budget/greedy_add_mse40k.png",
+                   outputTextName=f"Greedy Experiments/Synth Energy Budget/greedy_add_output40k.txt",
+                   energyBudget=40000, energyWeight=0.1)
+
+        fig, ax = plt.subplots(figsize=(8, 8))
+        ax.set_xlim(-100, 1300 + 100)
+        ax.set_ylim(-100, 800 + 100)
+        hoverPoints, sensorNames = getHoverPoints(sensorsGDF, commRadius=70, ax=ax, height=15)
+        processed_files = (fig, ax, HP_gdf, UHP_gdf, SHP_gdf, sensorNames, df)
+        greedy_add(processed_files, savePlots=True,
+                   pathPlotName=f"Greedy Experiments/Synth Energy Budget/greedy_add_path45k.png",
+                   msePlotName=f"Greedy Experiments/Synth Energy Budget/greedy_add_mse45k.png",
+                   outputTextName=f"Greedy Experiments/Synth Energy Budget/greedy_add_output45k.txt",
+                   energyBudget=45000, energyWeight=0.1)
+
+        fig, ax = plt.subplots(figsize=(8, 8))
+        ax.set_xlim(-100, 1300 + 100)
+        ax.set_ylim(-100, 800 + 100)
+        hoverPoints, sensorNames = getHoverPoints(sensorsGDF, commRadius=70, ax=ax, height=15)
+        processed_files = (fig, ax, HP_gdf, UHP_gdf, SHP_gdf, sensorNames, df)
+        greedy_add(processed_files, savePlots=True,
+                   pathPlotName=f"Greedy Experiments/Synth Energy Budget/greedy_add_path50k.png",
+                   msePlotName=f"Greedy Experiments/Synth Energy Budget/greedy_add_mse50k.png",
+                   outputTextName=f"Greedy Experiments/Synth Energy Budget/greedy_add_output50k.txt",
+                   energyBudget=50000, energyWeight=0.1)
+
+        fig, ax = plt.subplots(figsize=(8, 8))
+        ax.set_xlim(-100, 1300 + 100)
+        ax.set_ylim(-100, 800 + 100)
+        hoverPoints, sensorNames = getHoverPoints(sensorsGDF, commRadius=70, ax=ax, height=15)
+        processed_files = (fig, ax, HP_gdf, UHP_gdf, SHP_gdf, sensorNames, df)
+        greedy_add(processed_files, savePlots=True,
+                   pathPlotName=f"Greedy Experiments/Synth Energy Budget/greedy_add_path55k.png",
+                   msePlotName=f"Greedy Experiments/Synth Energy Budget/greedy_add_mse55k.png",
+                   outputTextName=f"Greedy Experiments/Synth Energy Budget/greedy_add_output55k.txt",
+                   energyBudget=55000, energyWeight=0.1)
+
+
+    # synthBudgetTests()
+    # exit()
+
+    def numSensorsTests():
+        seeds = [0, 2, 4]
+        numSensors = [20, 30, 40, 50, 60, 70]
+        for seed in seeds:
+            random.seed(seed)
+            np.random.seed(seed)
+            dataFolder = 'CAF_Sensor_Dataset_2/caf_sensors/Hourly'
+            df = processData(dataFolder)
+            sensorsGDF, df = addSensorsUniformRandom(df=df, numSensors=80)
+            print(f'len columns = {len(df.columns)}')
+            df = normalizeData(df)
+            df = df[np.random.permutation(df.columns)]
+            print(f'len columns = {len(df.columns)}')
+            for sensor in numSensors:
+                croppedDF = df.iloc[:, :sensor]
+                croppedSensorsGDF = sensorsGDF[sensorsGDF['Location'].isin(croppedDF.columns)]
+                fig1, ax1 = plt.subplots(figsize=(8, 8))
+                ax1.set_xlim(-100, 1300 + 100)
+                ax1.set_ylim(-100, 800 + 100)
+                HP_gdf, sensorNames = getHoverPoints(croppedSensorsGDF, commRadius=70, ax=ax1, height=15)
+                SHP_gdf = gpd.GeoDataFrame()
+                SHP_gdf['geometry'] = None
+                SHP_gdf = SHP_gdf.set_geometry('geometry')
+                UHP_gdf = HP_gdf.copy()
+                SHP_gdf.crs = 'EPSG:3857'  # pseudo-mercator
+                UHP_gdf.crs = 'EPSG:3857'
+                processed_files = (fig1, ax1, HP_gdf, UHP_gdf, SHP_gdf, sensorNames, croppedDF)
+                greedy_add(processed_files, savePlots=True, pathPlotName=f"Greedy Experiments/Num Sensors Discrete/path{sensor}s{seed}.png",
+                            msePlotName=f"Greedy Experiments/Num Sensors Discrete/mse{sensor}s{seed}.png",
+                            outputTextName=f"Greedy Experiments/Num Sensors Discrete/output{sensor}s{seed}.txt",
+                            energyBudget=40000, energyWeight=0.1)
+
+    # numSensorsTests()
+    # exit()
+
+    def origTechTests():
+        techs = ['Zigbee', 'WiFi', 'BT', 'UWB']
+        droneHeight = 9
+        communicationRadius = 50
+        minSet = False
+        generate = False
+        addToOriginal = False
+        numSensors = 37
+        processed_files = processFiles(droneHeight, communicationRadius, minSet, generate, addToOriginal, numSensors)
+        greedy_add(processed_files, savePlots=True, pathPlotName=f"Greedy Experiments/Real Techs/Zigbee_path.png",
+                                  msePlotName=f"Greedy Experiments/Real Techs/Zigbee_mse.png",
+                                  outputTextName=f"Greedy Experiments/Real Techs/Zigbee_output.txt",
+                                  energyBudget=40000, transferRate=.25, dataSize=10)
+        droneHeight = 9
+        communicationRadius = 70
+        minSet = False
+        generate = False
+        addToOriginal = False
+        numSensors = 37
+        processed_files = processFiles(droneHeight, communicationRadius, minSet, generate, addToOriginal, numSensors)
+        greedy_add(processed_files, savePlots=True, pathPlotName=f"Greedy Experiments/Real Techs/WiFi_path.png",
+                                  msePlotName=f"Greedy Experiments/Real Techs/WiFi_mse.png",
+                                  outputTextName=f"Greedy Experiments/Real Techs/WiFi_output.txt",
+                                  energyBudget=40000, transferRate=9, dataSize=10)
+        droneHeight = 9
+        communicationRadius = 10
+        minSet = False
+        generate = False
+        addToOriginal = False
+        numSensors = 37
+        processed_files = processFiles(droneHeight, communicationRadius, minSet, generate, addToOriginal, numSensors)
+        greedy_add(processed_files, savePlots=True, pathPlotName=f"Greedy Experiments/Real Techs/BT_path.png",
+                                  msePlotName=f"Greedy Experiments/Real Techs/BT_mse.png",
+                                  outputTextName=f"Greedy Experiments/Real Techs/BT_output.txt",
+                                  energyBudget=40000, transferRate=25, dataSize=10)
+        droneHeight = 9
+        communicationRadius = 10
+        minSet = False
+        generate = False
+        addToOriginal = False
+        numSensors = 37
+        processed_files = processFiles(droneHeight, communicationRadius, minSet, generate, addToOriginal, numSensors)
+        greedy_add(processed_files, savePlots=True, pathPlotName=f"Greedy Experiments/Real Techs/UWB_path.png",
+                                  msePlotName=f"Greedy Experiments/Real Techs/UWB_mse.png",
+                                  outputTextName=f"Greedy Experiments/Real Techs/UWB_output.txt",
+                                  energyBudget=40000, transferRate=110, dataSize=10)
+
+
+    origTechTests()
     exit()
     all_mses = {gamma: [] for gamma in gamma_values}
     all_num_sensors = {gamma: [] for gamma in gamma_values}
@@ -353,3 +566,106 @@ if __name__ == '__main__':
     plt.grid(True)
     plt.show()
 
+
+    def synthBudgetTests():
+        rSeed = 2
+        random.seed(rSeed)
+        np.random.seed(rSeed)
+        dataFolder = 'CAF_Sensor_Dataset_2/caf_sensors/Hourly'
+        df = processData(dataFolder)
+        sensorsGDF, df = addSensorsUniformRandom(df=df, numSensors=40)
+        print(f'len columns = {len(df.columns)}')
+        df = normalizeData(df)
+        df = df[np.random.permutation(df.columns)]
+        print(f'len columns = {len(df.columns)}')
+        fig1, ax1 = plt.subplots(figsize=(8, 8))
+        ax1.set_xlim(-100, 1300 + 100)
+        ax1.set_ylim(-100, 800 + 100)
+        HP_gdf, sensorNames = getHoverPoints(sensorsGDF, commRadius=70, ax=ax1, height=15)
+        SHP_gdf = gpd.GeoDataFrame()
+        SHP_gdf['geometry'] = None
+        SHP_gdf = SHP_gdf.set_geometry('geometry')
+        UHP_gdf = HP_gdf.copy()
+        SHP_gdf.crs = 'EPSG:3857'  # pseudo-mercator
+        UHP_gdf.crs = 'EPSG:3857'
+        for j in range(3):
+            # fig, ax = plt.subplots(figsize=(8, 8))
+            # ax.set_xlim(-100, 1300 + 100)
+            # ax.set_ylim(-100, 800 + 100)
+            # hoverPoints, sensorNames = getHoverPoints(sensorsGDF, commRadius=70, ax=ax, height=15)
+            # pathPlotName = f"Experiments/Budget Experiments3/generated/RSEO/20k/map{rSeed}path{j + 1}"
+            # msePlotName = f"Experiments/Budget Experiments3/generated/RSEO/20k/map{rSeed}mse{j + 1}"
+            # outputTextName = f"Experiments/Budget Experiments3/generated/RSEO/20k/map{rSeed}output{j + 1}.txt"
+            # RSEO(HP_gdf=hoverPoints, ax1=ax, df=df, fig1=fig, sensorNames=sensorNames,
+            #      savePlots=True, generate=True, pathPlotName=pathPlotName, msePlotName=msePlotName,
+            #      energyBudget=20000, outputTextName=outputTextName, numSensors=40, addToOriginal=True)
+            # fig, ax = plt.subplots(figsize=(8, 8))
+            # ax.set_xlim(-100, 1300 + 100)
+            # ax.set_ylim(-100, 800 + 100)
+            # hoverPoints, sensorNames = getHoverPoints(sensorsGDF, commRadius=70, ax=ax, height=15)
+            # pathPlotName = f"Experiments/Budget Experiments3/generated/RSEO/25k/map{rSeed}path{j + 1}"
+            # msePlotName = f"Experiments/Budget Experiments3/generated/RSEO/25k/map{rSeed}mse{j + 1}"
+            # outputTextName = f"Experiments/Budget Experiments3/generated/RSEO/25k/map{rSeed}output{j + 1}.txt"
+            # RSEO(HP_gdf=hoverPoints, ax1=ax, df=df, fig1=fig, sensorNames=sensorNames,
+            #      savePlots=True, generate=True, pathPlotName=pathPlotName, msePlotName=msePlotName,
+            #      energyBudget=25000, outputTextName=outputTextName, numSensors=40, addToOriginal=True)
+            # fig, ax = plt.subplots(figsize=(8, 8))
+            # ax.set_xlim(-100, 1300 + 100)
+            # ax.set_ylim(-100, 800 + 100)
+            # hoverPoints, sensorNames = getHoverPoints(sensorsGDF, commRadius=70, ax=ax, height=15)
+            # pathPlotName = f"Experiments/Budget Experiments3/generated/RSEO/30k/map{rSeed}path{j + 1}"
+            # msePlotName = f"Experiments/Budget Experiments3/generated/RSEO/30k/map{rSeed}mse{j + 1}"
+            # outputTextName = f"Experiments/Budget Experiments3/generated/RSEO/30k/map{rSeed}output{j + 1}.txt"
+            # RSEO(HP_gdf=hoverPoints, ax1=ax, df=df, fig1=fig, sensorNames=sensorNames,
+            #      savePlots=True, generate=True, pathPlotName=pathPlotName, msePlotName=msePlotName,
+            #      energyBudget=30000, outputTextName=outputTextName, numSensors=40, addToOriginal=True)
+            fig, ax = plt.subplots(figsize=(8, 8))
+            ax.set_xlim(-100, 1300 + 100)
+            ax.set_ylim(-100, 800 + 100)
+            hoverPoints, sensorNames = getHoverPoints(sensorsGDF, commRadius=70, ax=ax, height=15)
+            pathPlotName = f"Experiments/Budget Experiments3/generated/RSEO/35k/map{rSeed}path{j + 4}"
+            msePlotName = f"Experiments/Budget Experiments3/generated/RSEO/35k/map{rSeed}mse{j + 4}"
+            outputTextName = f"Experiments/Budget Experiments3/generated/RSEO/35k/map{rSeed}output{j + 4}.txt"
+            RSEO(HP_gdf=hoverPoints, ax1=ax, df=df, fig1=fig, sensorNames=sensorNames,
+                 savePlots=True, generate=True, pathPlotName=pathPlotName, msePlotName=msePlotName,
+                 energyBudget=35000, outputTextName=outputTextName, numSensors=40, addToOriginal=True)
+            # fig, ax = plt.subplots(figsize=(8, 8))
+            # ax.set_xlim(-100, 1300 + 100)
+            # ax.set_ylim(-100, 800 + 100)
+            # hoverPoints, sensorNames = getHoverPoints(sensorsGDF, commRadius=70, ax=ax, height=15)
+            # pathPlotName = f"Experiments/Budget Experiments3/generated/RSEO/40k/map{rSeed}path{j + 1}"
+            # msePlotName = f"Experiments/Budget Experiments3/generated/RSEO/40k/map{rSeed}mse{j + 1}"
+            # outputTextName = f"Experiments/Budget Experiments3/generated/RSEO/40k/map{rSeed}output{j + 1}.txt"
+            # RSEO(HP_gdf=hoverPoints, ax1=ax, df=df, fig1=fig, sensorNames=sensorNames,
+            #      savePlots=True, generate=True, pathPlotName=pathPlotName, msePlotName=msePlotName,
+            #      energyBudget=40000, outputTextName=outputTextName, numSensors=40, addToOriginal=True)
+            # fig, ax = plt.subplots(figsize=(8, 8))
+            # ax.set_xlim(-100, 1300 + 100)
+            # ax.set_ylim(-100, 800 + 100)
+            # hoverPoints, sensorNames = getHoverPoints(sensorsGDF, commRadius=70, ax=ax, height=15)
+            # pathPlotName = f"Experiments/Budget Experiments3/generated/RSEO/45k/map{rSeed}path{j + 1}"
+            # msePlotName = f"Experiments/Budget Experiments3/generated/RSEO/45k/map{rSeed}mse{j + 1}"
+            # outputTextName = f"Experiments/Budget Experiments3/generated/RSEO/45k/map{rSeed}output{j + 1}.txt"
+            # RSEO(HP_gdf=hoverPoints, ax1=ax, df=df, fig1=fig, sensorNames=sensorNames,
+            #      savePlots=True, generate=True, pathPlotName=pathPlotName, msePlotName=msePlotName,
+            #      energyBudget=45000, outputTextName=outputTextName, numSensors=40, addToOriginal=True)
+            fig, ax = plt.subplots(figsize=(8, 8))
+            ax.set_xlim(-100, 1300 + 100)
+            ax.set_ylim(-100, 800 + 100)
+            hoverPoints, sensorNames = getHoverPoints(sensorsGDF, commRadius=70, ax=ax, height=15)
+            pathPlotName = f"Experiments/Budget Experiments3/generated/RSEO/50k/map{rSeed}path{j + 4}"
+            msePlotName = f"Experiments/Budget Experiments3/generated/RSEO/50k/map{rSeed}mse{j + 4}"
+            outputTextName = f"Experiments/Budget Experiments3/generated/RSEO/50k/map{rSeed}output{j + 4}.txt"
+            RSEO(HP_gdf=hoverPoints, ax1=ax, df=df, fig1=fig, sensorNames=sensorNames,
+                 savePlots=True, generate=True, pathPlotName=pathPlotName, msePlotName=msePlotName,
+                 energyBudget=50000, outputTextName=outputTextName, numSensors=40, addToOriginal=True)
+            # fig, ax = plt.subplots(figsize=(8, 8))
+            # ax.set_xlim(-100, 1300 + 100)
+            # ax.set_ylim(-100, 800 + 100)
+            # hoverPoints, sensorNames = getHoverPoints(sensorsGDF, commRadius=70, ax=ax, height=15)
+            # pathPlotName = f"Experiments/Budget Experiments3/generated/RSEO/55k/map{rSeed}path{j + 1}"
+            # msePlotName = f"Experiments/Budget Experiments3/generated/RSEO/55k/map{rSeed}mse{j + 1}"
+            # outputTextName = f"Experiments/Budget Experiments3/generated/RSEO/55k/map{rSeed}output{j + 1}.txt"
+            # RSEO(HP_gdf=hoverPoints, ax1=ax, df=df, fig1=fig, sensorNames=sensorNames,
+            #      savePlots=True, generate=True, pathPlotName=pathPlotName, msePlotName=msePlotName,
+            #      energyBudget=55000, outputTextName=outputTextName, numSensors=40, addToOriginal=True)
